@@ -764,7 +764,7 @@ with tab1:
         for _, row in pos_alerts.iterrows():
             st.markdown(f"""<div class="alert-card danger">
                 <div class="a-title">⚡ {row['メインKW']}（{row['ジャンル']}）</div>
-                <div class="a-sub">順位 {'圏外' if row['前回順位'] >= 100 else f"{row['前回順位']:.1f}"} → {'圏外' if row['順位'] >= 100 else row['順位']} ({row['順位変動']:+.1f}) | 競合: {row['競合変動']:+.1f} | 前月比 {row['PV比']}%</div>
+                <div class="a-sub">順位 {'圏外' if row['前回順位'] >= 100 else f"{row['前回順位']:.1f}"} → {'圏外' if row['順位'] >= 100 else row['順位']} ({row['順位変動']:+.1f}) | 前月比 {row['PV比']}%{f" | 競合: {row['競合変動']:+.1f}" if '競合変動' in row.index else ''}</div>
             </div>""", unsafe_allow_html=True)
 
 
@@ -801,7 +801,8 @@ with tab2:
     tdf = tdf.copy()
     tdf["スラッグ"] = tdf["URL"].apply(lambda x: x.rstrip("/").split("/")[-1] if isinstance(x, str) and x.startswith("http") else "-")
 
-    display_cols = ["ステータス", "サイト", "分類", "タイトル", "スラッグ", "PV比", "先月PV", "現PV", "順位", "順位変動", "Impr", "Click", "CTR", "公開日", "前回更新", "URL"]
+    all_display_cols = ["ステータス", "サイト", "分類", "タイトル", "スラッグ", "PV比", "先月PV", "現PV", "順位", "順位変動", "Impr", "Click", "CTR", "公開日", "前回更新", "URL"]
+    display_cols = [c for c in all_display_cols if c in tdf.columns]
     st.markdown(f'<div class="sec-title">📋 {len(tdf)}件表示</div>', unsafe_allow_html=True)
 
     # 順位の圏外表示用にコピー
@@ -815,11 +816,27 @@ with tab2:
         except (ValueError, TypeError):
             return ""
 
-    styled = display_df.style \
-        .applymap(pos_color_with_rankout, subset=["順位"]) \
-        .applymap(change_color, subset=["順位変動"]) \
-        .applymap(pv_color, subset=["PV比"]) \
-        .format({"順位変動": "{:+.1f}", "CTR": "{:.1f}%", "PV比": "{}%"})
+    style_maps = []
+    if "順位" in display_df.columns:
+        style_maps.append(("順位", pos_color_with_rankout))
+    if "順位変動" in display_df.columns:
+        style_maps.append(("順位変動", change_color))
+    if "PV比" in display_df.columns:
+        style_maps.append(("PV比", pv_color))
+
+    styled = display_df.style
+    for col, func in style_maps:
+        styled = styled.applymap(func, subset=[col])
+
+    fmt = {}
+    if "順位変動" in display_df.columns:
+        fmt["順位変動"] = "{:+.1f}"
+    if "CTR" in display_df.columns:
+        fmt["CTR"] = "{:.1f}%"
+    if "PV比" in display_df.columns:
+        fmt["PV比"] = "{}%"
+    if fmt:
+        styled = styled.format(fmt)
 
     st.dataframe(styled, use_container_width=True, height=600)
 
@@ -841,13 +858,14 @@ with tab2:
                 st.altair_chart(draw_sparkline(sel_history, "順位", "#c62828"), use_container_width=True)
 
             # 競合比較
-            st.caption("🏆 競合ポジション比較")
-            cc1, cc2, cc3, cc4 = st.columns(4)
-            cc1.metric("自社順位", f"{sel_row['順位']:.1f}", delta=f"{sel_row['順位変動']:+.1f}", delta_color="inverse")
-            cc2.metric("競合1位", f"{sel_row['競合1位']:.1f}")
-            cc3.metric("競合2位", f"{sel_row['競合2位']:.1f}")
-            cc4.metric("競合3位", f"{sel_row['競合3位']:.1f}")
-            st.caption(f"競合の平均変動: {sel_row['競合変動']:+.1f}（+は競合が悪化 = チャンス）")
+            if "競合1位" in sel_row.index:
+                st.caption("🏆 競合ポジション比較")
+                cc1, cc2, cc3, cc4 = st.columns(4)
+                cc1.metric("自社順位", f"{sel_row['順位']:.1f}", delta=f"{sel_row['順位変動']:+.1f}", delta_color="inverse")
+                cc2.metric("競合1位", f"{sel_row['競合1位']:.1f}")
+                cc3.metric("競合2位", f"{sel_row['競合2位']:.1f}")
+                cc4.metric("競合3位", f"{sel_row['競合3位']:.1f}")
+                st.caption(f"競合の平均変動: {sel_row['競合変動']:+.1f}（+は競合が悪化 = チャンス）")
 
 
 # ========== アラートタブ ==========
@@ -885,8 +903,9 @@ with tab3:
                 pos_display = "圏外" if row["順位"] >= 100 else f"{row['順位']:.1f}"
                 mc1.metric("順位", pos_display, delta=f"{row['順位変動']:+.1f}", delta_color="inverse")
                 mc2.metric("PV前月比", f"{row['PV比']}%")
-                mc3.metric("競合変動", f"{row['競合変動']:+.1f}")
-                st.caption(f"競合が{'改善' if row['競合変動'] < 0 else '悪化'}傾向 → {'競合に抜かれた可能性' if row['競合変動'] < 0 else '自社の問題の可能性'}")
+                if "競合変動" in row.index:
+                    mc3.metric("競合変動", f"{row['競合変動']:+.1f}")
+                    st.caption(f"競合が{'改善' if row['競合変動'] < 0 else '悪化'}傾向 → {'競合に抜かれた可能性' if row['競合変動'] < 0 else '自社の問題の可能性'}")
                 sel_h = history_df[history_df["ID"] == row["ID"]]
                 if not sel_h.empty:
                     st.altair_chart(draw_sparkline(sel_h, "順位", "#c62828"), use_container_width=True)
