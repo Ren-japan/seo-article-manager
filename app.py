@@ -24,20 +24,41 @@ with st.sidebar:
     st.markdown("### 📂 データ管理")
 
     st.markdown("**GSCデータ**")
-    st.caption("GSC → 検索パフォーマンス → エクスポート（ページ別・クエリ別どちらもOK）")
-    gsc_file = st.file_uploader("CSVアップロード", type=["csv"], key="gsc_csv")
+    st.caption("GSC → 検索パフォーマンス → エクスポート（zipでもCSVでもOK）")
+    gsc_file = st.file_uploader("GSCデータ", type=["csv", "zip"], key="gsc_csv")
     if gsc_file:
-        gsc_df = pd.read_csv(gsc_file)
-        cols = gsc_df.columns.tolist()
-        # ページ別かクエリ別か自動判定（1列目がURLっぽいかどうか）
-        first_col_vals = gsc_df.iloc[:, 0].astype(str)
-        is_pages = first_col_vals.str.startswith("http").any()
-        if is_pages:
-            gsc_df.to_csv(GSC_PAGES_PATH, index=False)
-            st.success(f"✅ ページ別 {len(gsc_df)}行 保存済み")
+        import zipfile, io
+
+        def process_gsc_csv(csv_df, filename=""):
+            """CSVを自動判定してページ別/クエリ別に振り分け"""
+            first_col_vals = csv_df.iloc[:, 0].astype(str)
+            is_pages = first_col_vals.str.startswith("http").any()
+            if is_pages:
+                csv_df.to_csv(GSC_PAGES_PATH, index=False)
+                st.success(f"✅ ページ別 {len(csv_df)}行 保存済み")
+            else:
+                csv_df.to_csv(GSC_QUERIES_PATH, index=False)
+                st.success(f"✅ クエリ別 {len(csv_df)}行 保存済み")
+
+        if gsc_file.name.endswith(".zip"):
+            # zip展開して中のCSVを全部処理
+            zf = zipfile.ZipFile(io.BytesIO(gsc_file.read()))
+            csv_count = 0
+            for name in zf.namelist():
+                if name.endswith(".csv"):
+                    csv_data = zf.read(name)
+                    try:
+                        csv_df = pd.read_csv(io.BytesIO(csv_data))
+                        if len(csv_df) > 0:
+                            process_gsc_csv(csv_df, name)
+                            csv_count += 1
+                    except Exception:
+                        pass
+            if csv_count == 0:
+                st.warning("zipの中にCSVが見つかりませんでした")
         else:
-            gsc_df.to_csv(GSC_QUERIES_PATH, index=False)
-            st.success(f"✅ クエリ別 {len(gsc_df)}行 保存済み")
+            gsc_df = pd.read_csv(gsc_file)
+            process_gsc_csv(gsc_df)
 
     st.markdown("---")
 
