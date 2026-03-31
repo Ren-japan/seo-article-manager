@@ -637,7 +637,7 @@ def load_from_spreadsheet():
             status = "正常"
 
         # 分類
-        category = art.get("記事区分1", "") or art.get("カテゴリー", "") or art.get("分類", "")
+        category = art.get("記事区分1", "")
         # 記事タイプ（M列: CV型/PV型）
         article_type = art.get("記事区分2", "")
         if not article_type:
