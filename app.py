@@ -883,6 +883,68 @@ with tab1:
 
     st.markdown("")
 
+    # === ビジュアルチャート ===
+    import altair as alt
+
+    chart_c1, chart_c2, chart_c3 = st.columns([1, 1, 1])
+
+    with chart_c1:
+        # 記事タイプ比率（ドーナツチャート）
+        st.markdown('<div class="sec-title">📊 記事タイプ比率</div>', unsafe_allow_html=True)
+        type_data = filtered["記事タイプ"].value_counts().reset_index()
+        type_data.columns = ["タイプ", "件数"]
+        if not type_data.empty:
+            donut = alt.Chart(type_data).mark_arc(innerRadius=50).encode(
+                theta=alt.Theta("件数:Q"),
+                color=alt.Color("タイプ:N", scale=alt.Scale(
+                    domain=["PV型", "CV型"],
+                    range=["#1565c0", "#c62828"]
+                ), legend=alt.Legend(orient="bottom")),
+                tooltip=["タイプ", "件数"]
+            ).properties(height=200)
+            st.altair_chart(donut, use_container_width=True)
+
+    with chart_c2:
+        # 記事の健康状態（横棒）
+        st.markdown('<div class="sec-title">🩺 記事の健康状態</div>', unsafe_allow_html=True)
+        health_good = len(filtered[filtered["PV比"] >= 100])
+        health_ok = len(filtered[(filtered["PV比"] >= 80) & (filtered["PV比"] < 100)])
+        health_warn = len(filtered[(filtered["PV比"] >= 60) & (filtered["PV比"] < 80)])
+        health_bad = len(filtered[filtered["PV比"] < 60])
+
+        health_data = pd.DataFrame([
+            {"状態": "🟢 好調（100%↑）", "件数": health_good, "order": 1},
+            {"状態": "🟡 維持（80-100%）", "件数": health_ok, "order": 2},
+            {"状態": "🟠 注意（60-80%）", "件数": health_warn, "order": 3},
+            {"状態": "🔴 危険（60%↓）", "件数": health_bad, "order": 4},
+        ])
+        bar = alt.Chart(health_data).mark_bar().encode(
+            x=alt.X("件数:Q", title=None),
+            y=alt.Y("状態:N", sort=alt.SortField("order"), title=None),
+            color=alt.Color("状態:N", scale=alt.Scale(
+                domain=["🟢 好調（100%↑）", "🟡 維持（80-100%）", "🟠 注意（60-80%）", "🔴 危険（60%↓）"],
+                range=["#2e7d32", "#f9a825", "#e65100", "#c62828"]
+            ), legend=None),
+            tooltip=["状態", "件数"]
+        ).properties(height=200)
+        st.altair_chart(bar, use_container_width=True)
+
+    with chart_c3:
+        # 分類別の記事数
+        st.markdown('<div class="sec-title">📁 分類別</div>', unsafe_allow_html=True)
+        cat_data = filtered["分類"].value_counts().reset_index()
+        cat_data.columns = ["分類", "件数"]
+        if not cat_data.empty:
+            cat_bar = alt.Chart(cat_data).mark_bar().encode(
+                x=alt.X("件数:Q", title=None),
+                y=alt.Y("分類:N", sort="-x", title=None),
+                color=alt.Color("分類:N", legend=None),
+                tooltip=["分類", "件数"]
+            ).properties(height=200)
+            st.altair_chart(cat_bar, use_container_width=True)
+
+    st.markdown("")
+
     # 直近アラート（PV + 順位急落 統合）
     st.markdown('<div class="sec-title">⚡ 直近アラート</div>', unsafe_allow_html=True)
 
