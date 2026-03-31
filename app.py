@@ -1101,19 +1101,8 @@ with tab2:
     s_col, s_asc = sort_map[sort_option]
     tdf = tdf.sort_values(s_col, ascending=s_asc)
 
-    # スラッグ列を追加（URLから生成）
     tdf = tdf.copy()
-    tdf["スラッグ"] = tdf["URL"].apply(lambda x: x.rstrip("/").split("/")[-1] if isinstance(x, str) and x.startswith("http") else "-")
-
-    all_display_cols = ["ステータス", "サイト", "メインKW", "メインKW順位", "サブKW", "サブKW順位", "分類", "記事タイプ", "タイトル", "PV比", "先月PV", "現PV", "順位", "順位変動", "Impr", "Click", "CTR", "公開日", "前回更新", "URL"]
-    display_cols = [c for c in all_display_cols if c in tdf.columns]
     st.markdown(f'<div class="sec-title">📋 {len(tdf)}件表示</div>', unsafe_allow_html=True)
-
-    # 順位の圏外表示用にコピー
-    display_df = tdf[display_cols].copy()
-    if "順位" in display_df.columns:
-        display_df["順位"] = display_df["順位"].apply(lambda x: "圏外" if x >= 100 else f"{x:.1f}")
-        display_df = display_df.rename(columns={"順位": "平均順位"})
 
     def pos_color_with_rankout(val):
         if val == "圏外": return "background-color: #d32f2f; color: white"
@@ -1122,29 +1111,53 @@ with tab2:
         except (ValueError, TypeError):
             return ""
 
-    style_maps = []
-    if "平均順位" in display_df.columns:
-        style_maps.append(("平均順位", pos_color_with_rankout))
-    if "順位変動" in display_df.columns:
-        style_maps.append(("順位変動", change_color))
-    if "PV比" in display_df.columns:
-        style_maps.append(("PV比", pv_color))
+    # === 表1: KW × 順位 ===
+    st.markdown('<div class="sec-title">🔑 KW × 順位</div>', unsafe_allow_html=True)
+    kw_cols = ["メインKW", "メインKW順位", "サブKW", "サブKW順位", "分類", "記事タイプ", "ステータス"]
+    kw_display = [c for c in kw_cols if c in tdf.columns]
+    kw_df = tdf[kw_display].copy()
 
-    styled = display_df.style
-    for col, func in style_maps:
-        styled = styled.applymap(func, subset=[col])
+    kw_styled = kw_df.style
+    if "ステータス" in kw_df.columns:
+        kw_styled = kw_styled.applymap(
+            lambda v: "color: #c62828; font-weight:600" if v in ["要改善", "圏外"] else ("color: #2e7d32" if v == "正常" else ""),
+            subset=["ステータス"]
+        )
+    st.dataframe(kw_styled, use_container_width=True, height=400)
+
+    # === 表2: パフォーマンス ===
+    st.markdown('<div class="sec-title">📊 パフォーマンス</div>', unsafe_allow_html=True)
+    perf_cols = ["メインKW", "PV比", "現PV", "先月PV", "順位", "順位変動", "Impr", "Click", "CTR"]
+    perf_display = [c for c in perf_cols if c in tdf.columns]
+    perf_df = tdf[perf_display].copy()
+
+    if "順位" in perf_df.columns:
+        perf_df["順位"] = perf_df["順位"].apply(lambda x: "圏外" if x >= 100 else f"{x:.1f}")
+        perf_df = perf_df.rename(columns={"順位": "平均順位"})
+
+    perf_style_maps = []
+    if "平均順位" in perf_df.columns:
+        perf_style_maps.append(("平均順位", pos_color_with_rankout))
+    if "順位変動" in perf_df.columns:
+        perf_style_maps.append(("順位変動", change_color))
+    if "PV比" in perf_df.columns:
+        perf_style_maps.append(("PV比", pv_color))
+
+    perf_styled = perf_df.style
+    for col, func in perf_style_maps:
+        perf_styled = perf_styled.applymap(func, subset=[col])
 
     fmt = {}
-    if "順位変動" in display_df.columns:
+    if "順位変動" in perf_df.columns:
         fmt["順位変動"] = "{:+.1f}"
-    if "CTR" in display_df.columns:
+    if "CTR" in perf_df.columns:
         fmt["CTR"] = "{:.1f}%"
-    if "PV比" in display_df.columns:
+    if "PV比" in perf_df.columns:
         fmt["PV比"] = "{}%"
     if fmt:
-        styled = styled.format(fmt)
+        perf_styled = perf_styled.format(fmt)
 
-    st.dataframe(styled, use_container_width=True, height=600)
+    st.dataframe(perf_styled, use_container_width=True, height=400)
 
     # 記事詳細（推移グラフ）
     st.markdown('<div class="sec-title">🔍 記事詳細（推移グラフ）</div>', unsafe_allow_html=True)
