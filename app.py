@@ -1116,6 +1116,10 @@ with tab2:
     kw_cols = ["メインKW", "メインKW順位", "サブKW", "サブKW順位", "分類", "記事タイプ", "ステータス"]
     kw_display = [c for c in kw_cols if c in tdf.columns]
     kw_df = tdf[kw_display].copy()
+    # KW順位の小数点を第1位に
+    for col in ["メインKW順位", "サブKW順位"]:
+        if col in kw_df.columns:
+            kw_df[col] = kw_df[col].apply(lambda x: f"{float(x):.1f}" if x != "-" and x != "" else "-")
 
     kw_styled = kw_df.style
     if "ステータス" in kw_df.columns:
