@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 import random
 import os
 import json
-from lib.spreadsheet import get_all_articles, get_all_tasks, save_gsc_pages, save_gsc_queries, get_gsc_pages, get_gsc_queries
+from lib.spreadsheet import get_all_articles, get_all_tasks, save_gsc_pages, save_gsc_queries, get_gsc_pages, get_gsc_queries, get_site_configs, save_site_config
 
 # ページ設定
 st.set_page_config(page_title="記事管理DB", page_icon="📊", layout="wide")
@@ -94,6 +94,31 @@ with st.sidebar:
         st.caption(f"クエリ別: {len(queries_cloud)}行（スプシ）")
     else:
         st.caption("クエリ別: なし")
+
+    st.markdown("---")
+
+    # サイト設定
+    st.markdown("**⚙️ サイト設定**")
+    st.caption("サイトごとの対象ディレクトリと除外パターン")
+
+    try:
+        site_configs = get_site_configs()
+    except Exception:
+        site_configs = []
+
+    with st.expander("設定を編集", expanded=False):
+        config_site = st.text_input("サイト名", placeholder="ほんべ", key="cfg_site")
+        config_dir = st.text_input("対象ディレクトリ", placeholder="/lasik/ （この配下がSEO記事）", key="cfg_dir")
+        config_exclude = st.text_input("除外パターン（カンマ区切り）", placeholder="contactform,privacy-policy,thanks", key="cfg_exclude")
+        if st.button("保存", key="cfg_save"):
+            if config_site:
+                save_site_config(config_site, config_dir, config_exclude)
+                st.success(f"✅ {config_site} の設定を保存しました")
+                st.cache_data.clear()
+
+    if site_configs:
+        for cfg in site_configs:
+            st.caption(f"📌 {cfg['サイト名']}: {cfg['対象ディレクトリ'] or '全体'} | 除外: {cfg['除外パターン'] or 'デフォルト'}")
 
     st.markdown("---")
     # 常にスプシ（実データ）を使う
@@ -508,11 +533,15 @@ def load_from_spreadsheet():
         gsc_pages = gsc_pages.rename(columns=col_map)
         gsc_pages["CTR"] = gsc_pages["CTR"].astype(str).str.replace("%", "").astype(float)
 
-    # SEO対象外のURLパターン
-    EXCLUDE_SLUGS = [
-        "contactform", "contact", "privacy-policy", "thanks",
-        "sitemap", "404", "category", "tag", "author",
-    ]
+    # デフォルト除外パターン
+    DEFAULT_EXCLUDES = ["contactform", "contact", "privacy-policy", "thanks",
+                        "sitemap", "404", "category", "tag", "author"]
+
+    # サイト設定を読み込み
+    try:
+        site_configs = {cfg["サイト名"]: cfg for cfg in get_site_configs()}
+    except Exception:
+        site_configs = {}
 
     for art in raw_articles:
         site = art.get("サイト", "")
@@ -521,9 +550,18 @@ def load_from_spreadsheet():
         if not url:
             url = "（未公開）"
 
-        # SEO対象外の記事を除外
+        # サイト設定による対象ディレクトリフィルタ
+        cfg = site_configs.get(site, {})
+        target_dir = cfg.get("対象ディレクトリ", "")
+        if target_dir and url.startswith("http"):
+            if target_dir not in url:
+                continue
+
+        # 除外パターン（サイト設定 or デフォルト）
+        custom_excludes = cfg.get("除外パターン", "")
+        excludes = [e.strip() for e in custom_excludes.split(",") if e.strip()] if custom_excludes else DEFAULT_EXCLUDES
         slug = url.rstrip("/").split("/")[-1] if url.startswith("http") else ""
-        if any(ex in slug for ex in EXCLUDE_SLUGS):
+        if any(ex in slug for ex in excludes):
             continue
 
         # GSCとマッチング

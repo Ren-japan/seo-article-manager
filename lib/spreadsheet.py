@@ -272,6 +272,53 @@ def get_gsc_queries(site_name: str = "ほんべ"):
     return None
 
 
+# ==================
+# サイト設定
+# ==================
+SITE_CONFIG_TAB = "_サイト設定"
+
+
+def _get_or_create_site_config_tab():
+    """サイト設定タブを取得（なければ作成）"""
+    sh = get_spreadsheet()
+    try:
+        ws = sh.worksheet(SITE_CONFIG_TAB)
+    except gspread.exceptions.WorksheetNotFound:
+        ws = sh.add_worksheet(title=SITE_CONFIG_TAB, rows=50, cols=5)
+        ws.update(values=[
+            ["サイト名", "対象ディレクトリ", "除外パターン", "更新者", "更新日"]
+        ], range_name="A1:E1")
+    return ws
+
+
+def get_site_configs() -> list[dict]:
+    """全サイト設定を取得"""
+    ws = _get_or_create_site_config_tab()
+    return ws.get_all_records()
+
+
+def save_site_config(site_name: str, target_dir: str, exclude_patterns: str, updated_by: str = "") -> bool:
+    """サイト設定を保存（既存なら更新、なければ追加）"""
+    ws = _get_or_create_site_config_tab()
+    all_rows = ws.get_all_values()
+    now = datetime.now().strftime("%Y/%m/%d %H:%M")
+
+    # 既存のサイト設定を探す
+    for i, row in enumerate(all_rows):
+        if i == 0:
+            continue
+        if row[0] == site_name:
+            ws.update_cell(i + 1, 2, target_dir)
+            ws.update_cell(i + 1, 3, exclude_patterns)
+            ws.update_cell(i + 1, 4, updated_by)
+            ws.update_cell(i + 1, 5, now)
+            return True
+
+    # 新規追加
+    ws.append_row([site_name, target_dir, exclude_patterns, updated_by, now])
+    return True
+
+
 def complete_intern_task(task_id: int) -> dict | None:
     """インターンタスクを完了にする"""
     ws = _get_or_create_intern_tab()
