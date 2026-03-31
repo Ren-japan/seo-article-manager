@@ -205,34 +205,36 @@ def get_intern_tasks(intern_name: str) -> list[dict]:
 # ==================
 # GSCデータのスプシ転記
 # ==================
-GSC_PAGES_TAB = "_GSC_ページ"
-GSC_QUERIES_TAB = "_GSC_クエリ"
+def _gsc_tab_name(site_name: str, data_type: str) -> str:
+    """GSCタブ名を生成（例: _GSC_ほんべ_ページ）"""
+    return f"_GSC_{site_name}_{data_type}"
 
 
-def save_gsc_pages(df) -> int:
+def save_gsc_pages(df, site_name: str = "ほんべ") -> int:
     """ページ別GSCデータをスプシに保存（上書き）"""
     sh = get_spreadsheet()
+    tab_name = _gsc_tab_name(site_name, "ページ")
     try:
-        ws = sh.worksheet(GSC_PAGES_TAB)
+        ws = sh.worksheet(tab_name)
         ws.clear()
     except gspread.exceptions.WorksheetNotFound:
-        ws = sh.add_worksheet(title=GSC_PAGES_TAB, rows=max(len(df) + 1, 100), cols=10)
+        ws = sh.add_worksheet(title=tab_name, rows=max(len(df) + 1, 100), cols=10)
 
-    # ヘッダー + データを書き込み
     headers = df.columns.tolist()
     rows = [headers] + df.astype(str).values.tolist()
     ws.update(values=rows, range_name=f"A1:{chr(64 + len(headers))}{len(rows)}")
     return len(df)
 
 
-def save_gsc_queries(df) -> int:
+def save_gsc_queries(df, site_name: str = "ほんべ") -> int:
     """クエリ別GSCデータをスプシに保存（上書き）"""
     sh = get_spreadsheet()
+    tab_name = _gsc_tab_name(site_name, "クエリ")
     try:
-        ws = sh.worksheet(GSC_QUERIES_TAB)
+        ws = sh.worksheet(tab_name)
         ws.clear()
     except gspread.exceptions.WorksheetNotFound:
-        ws = sh.add_worksheet(title=GSC_QUERIES_TAB, rows=max(len(df) + 1, 100), cols=10)
+        ws = sh.add_worksheet(title=tab_name, rows=max(len(df) + 1, 100), cols=10)
 
     headers = df.columns.tolist()
     rows = [headers] + df.astype(str).values.tolist()
@@ -240,11 +242,12 @@ def save_gsc_queries(df) -> int:
     return len(df)
 
 
-def get_gsc_pages():
+def get_gsc_pages(site_name: str = "ほんべ"):
     """スプシからページ別GSCデータを読み込み"""
     sh = get_spreadsheet()
+    tab_name = _gsc_tab_name(site_name, "ページ")
     try:
-        ws = sh.worksheet(GSC_PAGES_TAB)
+        ws = sh.worksheet(tab_name)
         records = ws.get_all_records()
         if records:
             import pandas as pd
@@ -254,11 +257,12 @@ def get_gsc_pages():
     return None
 
 
-def get_gsc_queries():
+def get_gsc_queries(site_name: str = "ほんべ"):
     """スプシからクエリ別GSCデータを読み込み"""
     sh = get_spreadsheet()
+    tab_name = _gsc_tab_name(site_name, "クエリ")
     try:
-        ws = sh.worksheet(GSC_QUERIES_TAB)
+        ws = sh.worksheet(tab_name)
         records = ws.get_all_records()
         if records:
             import pandas as pd
