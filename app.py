@@ -857,11 +857,11 @@ with tab1:
     st.markdown("")
 
     # ジャンル別カード
-    st.markdown('<div class="sec-title">📁 ジャンル別</div>', unsafe_allow_html=True)
-    genres = filtered["ジャンル"].unique()
+    st.markdown('<div class="sec-title">📁 サイト別</div>', unsafe_allow_html=True)
+    genres = filtered["サイト"].unique()
     cols = st.columns(min(len(genres), 5))
     for i, genre in enumerate(genres):
-        gdf = filtered[filtered["ジャンル"] == genre]
+        gdf = filtered[filtered["サイト"] == genre]
         g_total = len(gdf)
         g_pv_ok = len(gdf[gdf["PV比"] >= 80])
         g_pv_rate = round(g_pv_ok / g_total * 100) if g_total > 0 else 0
