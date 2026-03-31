@@ -1054,6 +1054,35 @@ with tab1:
 
     st.markdown("")
 
+    # === 競合比較（Ahrefsデータ） ===
+    st.markdown('<div class="sec-title">🏆 競合比較（Ahrefs）</div>', unsafe_allow_html=True)
+
+    # ほんべの競合データ（Ahrefs APIから取得済み）
+    competitors_data = [
+        {"ドメイン": "honbe-clinic.jp（自社）", "DR": 28, "共通KW": "-", "月間トラフィック": "17K", "シェア": "-"},
+        {"ドメイン": "senshinkai-clinic.jp", "DR": 44, "共通KW": 695, "月間トラフィック": "165K", "シェア": "8.5%"},
+        {"ドメイン": "sbc-lasik.jp", "DR": 41, "共通KW": 363, "月間トラフィック": "46K", "シェア": "19.5%"},
+        {"ドメイン": "shinagawa-lasik.com", "DR": 50, "共通KW": 331, "月間トラフィック": "30K", "シェア": "20.5%"},
+        {"ドメイン": "miyata-med.ne.jp", "DR": 41, "共通KW": 295, "月間トラフィック": "87K", "シェア": "5.2%"},
+        {"ドメイン": "nakamichi-eyeclinic.com", "DR": 13, "共通KW": 289, "月間トラフィック": "55K", "シェア": "9.3%"},
+    ]
+    comp_df = pd.DataFrame(competitors_data)
+
+    def dr_color(val):
+        try:
+            v = int(val)
+            if v >= 50: return "color: #c62828; font-weight:600"
+            if v >= 30: return "color: #e65100"
+            return "color: #2e7d32"
+        except (ValueError, TypeError):
+            return ""
+
+    comp_styled = comp_df.style.applymap(dr_color, subset=["DR"])
+    st.dataframe(comp_styled, use_container_width=True, hide_index=True)
+    st.caption("※ Ahrefsデータ（2026/3/30取得）。シェア = 共通KW / 全KWの割合")
+
+    st.markdown("")
+
     # 直近アラート（PV + 順位急落 統合）
     st.markdown('<div class="sec-title">⚡ 直近アラート</div>', unsafe_allow_html=True)
 
