@@ -863,18 +863,22 @@ with tab1:
     for i, genre in enumerate(genres):
         gdf = filtered[filtered["ジャンル"] == genre]
         g_total = len(gdf)
-        g_completed = len(gdf[gdf["ステータス"] == "完了"])
+        g_pv_ok = len(gdf[gdf["PV比"] >= 80])
+        g_pv_rate = round(g_pv_ok / g_total * 100) if g_total > 0 else 0
+        g_updated = len(gdf[gdf["前回更新"] != "-"])
+        g_update_rate = round(g_updated / g_total * 100) if g_total > 0 else 0
         g_alert = len(gdf[gdf["PV比"] < 80])
         g_pos_drop = len(gdf[gdf["順位変動"] >= 5])
-        g_rate = round(g_completed / g_total * 100) if g_total > 0 else 0
-        cls = rate_class(g_rate)
+        pv_cls = rate_class(g_pv_rate)
 
         with cols[i % len(cols)]:
-            st.markdown(f"""<div class="genre-card {cls}">
+            st.markdown(f"""<div class="genre-card {pv_cls}">
                 <div class="g-title">{genre}</div>
-                <div class="g-rate {cls}">{g_rate}%</div>
-                <div class="g-stats">{g_completed}/{g_total}記事完了 | 平均順位 {gdf['順位'].mean():.1f}</div>
-                <div class="g-stats">{'🔴 PV ' + str(g_alert) + '件' if g_alert > 0 else '🟢 PV OK'} | {'⚡ 急落 ' + str(g_pos_drop) + '件' if g_pos_drop > 0 else ''}</div>
+                <div class="g-rate {pv_cls}">PV維持 {g_pv_rate}%</div>
+                <div class="g-stats">{g_pv_ok}/{g_total}記事が前月比80%以上</div>
+                <div class="g-rate" style="font-size:18px; margin-top:8px;">更新済 {g_update_rate}%</div>
+                <div class="g-stats">{g_updated}/{g_total}記事が更新完了</div>
+                <div class="g-stats" style="margin-top:6px;">{'🔴 PVアラート ' + str(g_alert) + '件' if g_alert > 0 else '🟢 PV OK'} | {'⚡ 急落 ' + str(g_pos_drop) + '件' if g_pos_drop > 0 else ''}</div>
             </div>""", unsafe_allow_html=True)
 
     st.markdown("")
