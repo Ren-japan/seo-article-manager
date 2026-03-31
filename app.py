@@ -96,7 +96,10 @@ with st.sidebar:
         st.caption("クエリ別: なし")
 
     st.markdown("---")
-    use_real_data = st.checkbox("📡 実データを使う", value=os.path.exists(GSC_PAGES_PATH))
+    # ローカルCSVかスプシにGSCデータがあれば実データモードをデフォルトON
+    has_local = os.path.exists(GSC_PAGES_PATH)
+    has_cloud = (pages_cloud is not None and not pages_cloud.empty) if not has_local else False
+    use_real_data = st.checkbox("📡 実データを使う", value=(has_local or has_cloud))
     st.caption("OFFにするとダミーデータ表示")
 
 # === カスタムCSS ===
