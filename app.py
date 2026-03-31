@@ -538,11 +538,10 @@ def load_from_spreadsheet():
         genre = art.get("ジャンル", art.get("カテゴリ", site))
         slug = url.rstrip("/").split("/")[-1] if url != "（未公開）" else ""
 
-        # KW表示（メインKWがあればそれ、なければスラッグ）
+        # KW表示（O列のメインKWを最優先）
         main_kw = art.get("メインKW", "")
         if not main_kw:
-            tags = art.get("タグ（キーワード）", "")
-            main_kw = tags.split(",")[0].strip() if tags else slug
+            main_kw = slug
 
         articles.append({
             "ID": f"{site}_{slug}",
@@ -905,8 +904,10 @@ with tab3:
     ac1, ac2, ac3 = st.columns(3)
 
     with ac1:
-        st.markdown('<div class="sec-title">🔴 PVアラート（80%以下）</div>', unsafe_allow_html=True)
         pv_alerts_full = filtered[filtered["PV比"] < 80].sort_values("PV比")
+        pv_a_pv = len(pv_alerts_full[pv_alerts_full["記事タイプ"] == "PV型"]) if "記事タイプ" in pv_alerts_full.columns else 0
+        pv_a_cv = len(pv_alerts_full[pv_alerts_full["記事タイプ"] == "CV型"]) if "記事タイプ" in pv_alerts_full.columns else 0
+        st.markdown(f'<div class="sec-title">🔴 PVアラート（{len(pv_alerts_full)}件: ノウハウ{pv_a_pv} / CV{pv_a_cv}）</div>', unsafe_allow_html=True)
         if pv_alerts_full.empty:
             st.success("なし")
         for _, row in pv_alerts_full.iterrows():
@@ -918,15 +919,18 @@ with tab3:
                 pos_display = "圏外" if row["順位"] >= 100 else f"{row['順位']:.1f}"
                 mc3.metric("順位", pos_display, delta=f"{row['順位変動']:+.1f}", delta_color="inverse")
                 mc4.metric("CTR", f"{row['CTR']}%")
-                st.caption(f"{row['ジャンル']} / {row['分類']} / 担当: {row['担当'] if row['担当'] else '未割当'}")
+                article_type_label = row.get('記事タイプ', '')
+                st.caption(f"{row['ジャンル']} / {row['分類']} / {article_type_label} / 担当: {row['担当'] if row['担当'] else '未割当'}")
                 # ミニ推移
                 sel_h = history_df[history_df["ID"] == row["ID"]]
                 if not sel_h.empty:
                     st.altair_chart(draw_sparkline(sel_h, "PV", "#c62828"), use_container_width=True)
 
     with ac2:
-        st.markdown('<div class="sec-title">⚡ 順位急落（5位以上）</div>', unsafe_allow_html=True)
         pos_alerts_full = filtered[filtered["順位変動"] >= 5].sort_values("順位変動", ascending=False)
+        pos_a_pv = len(pos_alerts_full[pos_alerts_full["記事タイプ"] == "PV型"]) if "記事タイプ" in pos_alerts_full.columns else 0
+        pos_a_cv = len(pos_alerts_full[pos_alerts_full["記事タイプ"] == "CV型"]) if "記事タイプ" in pos_alerts_full.columns else 0
+        st.markdown(f'<div class="sec-title">⚡ 順位急落（{len(pos_alerts_full)}件: ノウハウ{pos_a_pv} / CV{pos_a_cv}）</div>', unsafe_allow_html=True)
         if pos_alerts_full.empty:
             st.success("なし")
         for _, row in pos_alerts_full.iterrows():
