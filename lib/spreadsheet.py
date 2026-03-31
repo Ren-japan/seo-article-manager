@@ -37,6 +37,13 @@ def get_spreadsheet():
     return gc.open_by_key(SPREADSHEET_ID)
 
 
+def get_site_names() -> list[str]:
+    """スプシのタブ名からサイト一覧を取得（_で始まるタブは除外）"""
+    sh = get_spreadsheet()
+    return [ws.title for ws in sh.worksheets()
+            if not ws.title.startswith("_") and ws.title.strip() != "シート1"]
+
+
 # ==================
 # 記事データの読み込み
 # ==================

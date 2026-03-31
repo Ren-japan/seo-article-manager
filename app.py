@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 import random
 import os
 import json
-from lib.spreadsheet import get_all_articles, get_all_tasks, save_gsc_pages, save_gsc_queries, get_gsc_pages, get_gsc_queries, get_site_configs, save_site_config
+from lib.spreadsheet import get_all_articles, get_all_tasks, save_gsc_pages, save_gsc_queries, get_gsc_pages, get_gsc_queries, get_site_configs, save_site_config, get_site_names
 
 # ページ設定
 st.set_page_config(page_title="記事管理DB", page_icon="📊", layout="wide")
@@ -107,9 +107,19 @@ with st.sidebar:
         site_configs = []
 
     with st.expander("設定を編集", expanded=False):
-        config_site = st.text_input("サイト名", placeholder="ほんべ", key="cfg_site")
-        config_dir = st.text_input("対象ディレクトリ", placeholder="/lasik/ （この配下がSEO記事）", key="cfg_dir")
-        config_exclude = st.text_input("除外パターン（カンマ区切り）", placeholder="contactform,privacy-policy,thanks", key="cfg_exclude")
+        try:
+            site_names = get_site_names()
+        except Exception:
+            site_names = []
+        if site_names:
+            config_site = st.selectbox("サイト", site_names, key="cfg_site")
+        else:
+            config_site = st.text_input("サイト名", placeholder="ほんべ", key="cfg_site_txt")
+
+        # 既存設定があれば表示
+        existing = next((c for c in site_configs if c.get("サイト名") == config_site), {})
+        config_dir = st.text_input("対象ディレクトリ", value=existing.get("対象ディレクトリ", ""), placeholder="/lasik/ （この配下がSEO記事）", key="cfg_dir")
+        config_exclude = st.text_input("除外パターン（カンマ区切り）", value=existing.get("除外パターン", ""), placeholder="contactform,privacy-policy,thanks", key="cfg_exclude")
         if st.button("保存", key="cfg_save"):
             if config_site:
                 save_site_config(config_site, config_dir, config_exclude)
