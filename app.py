@@ -10,6 +10,29 @@ import os
 import json
 from lib.spreadsheet import get_all_articles, get_all_tasks, save_gsc_pages, save_gsc_queries, get_gsc_pages, get_gsc_queries, get_site_configs, save_site_config, get_site_names
 
+# スプシアクセスのキャッシュ（5分）
+@st.cache_data(ttl=300)
+def _cached_gsc_pages():
+    return get_gsc_pages()
+
+@st.cache_data(ttl=300)
+def _cached_gsc_queries():
+    return get_gsc_queries()
+
+@st.cache_data(ttl=300)
+def _cached_site_configs():
+    try:
+        return get_site_configs()
+    except Exception:
+        return []
+
+@st.cache_data(ttl=300)
+def _cached_site_names():
+    try:
+        return get_site_names()
+    except Exception:
+        return []
+
 # ページ設定
 st.set_page_config(page_title="記事管理DB", page_icon="📊", layout="wide")
 
@@ -74,26 +97,28 @@ with st.sidebar:
 
     # 保存済みデータの状況
     st.markdown("**📊 保存済みデータ**")
-    # ローカルかスプシ、どちらかにあればOK
-    pages_local = os.path.exists(GSC_PAGES_PATH)
-    pages_cloud = get_gsc_pages() if not pages_local else None
-    if pages_local:
-        saved_pages = pd.read_csv(GSC_PAGES_PATH)
-        st.caption(f"ページ別: {len(saved_pages)}行")
-    elif pages_cloud is not None and not pages_cloud.empty:
-        st.caption(f"ページ別: {len(pages_cloud)}行（スプシ）")
-    else:
-        st.caption("ページ別: なし")
+    try:
+        pages_local = os.path.exists(GSC_PAGES_PATH)
+        pages_cloud = _cached_gsc_pages() if not pages_local else None
+        if pages_local:
+            saved_pages = pd.read_csv(GSC_PAGES_PATH)
+            st.caption(f"ページ別: {len(saved_pages)}行")
+        elif pages_cloud is not None and not pages_cloud.empty:
+            st.caption(f"ページ別: {len(pages_cloud)}行（スプシ）")
+        else:
+            st.caption("ページ別: なし")
 
-    queries_local = os.path.exists(GSC_QUERIES_PATH)
-    queries_cloud = get_gsc_queries() if not queries_local else None
-    if queries_local:
-        saved_queries = pd.read_csv(GSC_QUERIES_PATH)
-        st.caption(f"クエリ別: {len(saved_queries)}行")
-    elif queries_cloud is not None and not queries_cloud.empty:
-        st.caption(f"クエリ別: {len(queries_cloud)}行（スプシ）")
-    else:
-        st.caption("クエリ別: なし")
+        queries_local = os.path.exists(GSC_QUERIES_PATH)
+        queries_cloud = _cached_gsc_queries() if not queries_local else None
+        if queries_local:
+            saved_queries = pd.read_csv(GSC_QUERIES_PATH)
+            st.caption(f"クエリ別: {len(saved_queries)}行")
+        elif queries_cloud is not None and not queries_cloud.empty:
+            st.caption(f"クエリ別: {len(queries_cloud)}行（スプシ）")
+        else:
+            st.caption("クエリ別: なし")
+    except Exception:
+        st.caption("データ読み込み中...")
 
     st.markdown("---")
 
@@ -102,13 +127,13 @@ with st.sidebar:
     st.caption("サイトごとの対象ディレクトリと除外パターン")
 
     try:
-        site_configs = get_site_configs()
+        site_configs = _cached_site_configs()
     except Exception:
         site_configs = []
 
     with st.expander("設定を編集", expanded=False):
         try:
-            site_names = get_site_names()
+            site_names = _cached_site_names()
         except Exception:
             site_names = []
         if site_names:
