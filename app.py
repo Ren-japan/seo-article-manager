@@ -543,6 +543,19 @@ def load_from_spreadsheet():
         gsc_pages = gsc_pages.rename(columns=col_map)
         gsc_pages["CTR"] = gsc_pages["CTR"].astype(str).str.replace("%", "").astype(float)
 
+    # GSCクエリデータ読み込み（KW別順位用）
+    gsc_queries = None
+    if os.path.exists(GSC_QUERIES_PATH):
+        gsc_queries = pd.read_csv(GSC_QUERIES_PATH)
+    else:
+        gsc_queries = get_gsc_queries()
+
+    if gsc_queries is not None and not gsc_queries.empty:
+        q_col_map = {gsc_queries.columns[0]: "クエリ", gsc_queries.columns[1]: "クリック数",
+                     gsc_queries.columns[2]: "表示回数", gsc_queries.columns[3]: "CTR", gsc_queries.columns[4]: "順位"}
+        gsc_queries = gsc_queries.rename(columns=q_col_map)
+        gsc_queries["クエリ_lower"] = gsc_queries["クエリ"].str.lower()
+
     # デフォルト除外パターン
     DEFAULT_EXCLUDES = ["contactform", "contact", "privacy-policy", "thanks",
                         "sitemap", "404", "category", "tag", "author"]
@@ -653,6 +666,24 @@ def load_from_spreadsheet():
         main_kw = art.get("メインKW", "")
         if not main_kw:
             main_kw = slug
+        sub_kw = art.get("サブKW", "")
+
+        # KW別順位（GSCクエリデータとマッチング）
+        main_kw_pos = "-"
+        sub_kw_pos = "-"
+        if gsc_queries is not None and main_kw:
+            mkw_match = gsc_queries[gsc_queries["クエリ_lower"] == main_kw.lower()]
+            if not mkw_match.empty:
+                main_kw_pos = mkw_match.iloc[0]["順位"]
+        if gsc_queries is not None and sub_kw:
+            for skw in sub_kw.split(","):
+                skw = skw.strip()
+                if not skw:
+                    continue
+                skw_match = gsc_queries[gsc_queries["クエリ_lower"] == skw.lower()]
+                if not skw_match.empty:
+                    sub_kw_pos = skw_match.iloc[0]["順位"]
+                    break
 
         articles.append({
             "ID": f"{site}_{slug}",
@@ -661,6 +692,9 @@ def load_from_spreadsheet():
             "分類": category,
             "記事タイプ": article_type,
             "メインKW": main_kw,
+            "サブKW": sub_kw,
+            "メインKW順位": main_kw_pos,
+            "サブKW順位": sub_kw_pos,
             "タイトル": title,
             "スラッグ": slug,
             "URL": url,
@@ -1071,13 +1105,15 @@ with tab2:
     tdf = tdf.copy()
     tdf["スラッグ"] = tdf["URL"].apply(lambda x: x.rstrip("/").split("/")[-1] if isinstance(x, str) and x.startswith("http") else "-")
 
-    all_display_cols = ["ステータス", "サイト", "メインKW", "分類", "記事タイプ", "タイトル", "PV比", "先月PV", "現PV", "順位", "順位変動", "Impr", "Click", "CTR", "公開日", "前回更新", "URL"]
+    all_display_cols = ["ステータス", "サイト", "メインKW", "メインKW順位", "サブKW", "サブKW順位", "分類", "記事タイプ", "タイトル", "PV比", "先月PV", "現PV", "順位", "順位変動", "Impr", "Click", "CTR", "公開日", "前回更新", "URL"]
     display_cols = [c for c in all_display_cols if c in tdf.columns]
     st.markdown(f'<div class="sec-title">📋 {len(tdf)}件表示</div>', unsafe_allow_html=True)
 
     # 順位の圏外表示用にコピー
     display_df = tdf[display_cols].copy()
-    display_df["順位"] = display_df["順位"].apply(lambda x: "圏外" if x >= 100 else f"{x:.1f}")
+    if "順位" in display_df.columns:
+        display_df["順位"] = display_df["順位"].apply(lambda x: "圏外" if x >= 100 else f"{x:.1f}")
+        display_df = display_df.rename(columns={"順位": "平均順位"})
 
     def pos_color_with_rankout(val):
         if val == "圏外": return "background-color: #d32f2f; color: white"
@@ -1087,8 +1123,8 @@ with tab2:
             return ""
 
     style_maps = []
-    if "順位" in display_df.columns:
-        style_maps.append(("順位", pos_color_with_rankout))
+    if "平均順位" in display_df.columns:
+        style_maps.append(("平均順位", pos_color_with_rankout))
     if "順位変動" in display_df.columns:
         style_maps.append(("順位変動", change_color))
     if "PV比" in display_df.columns:
