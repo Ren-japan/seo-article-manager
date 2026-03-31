@@ -889,19 +889,37 @@ with tab1:
     chart_c1, chart_c2, chart_c3 = st.columns([1, 1, 1])
 
     with chart_c1:
-        # 記事タイプ比率（ドーナツチャート）
+        # 記事タイプ比率
         st.markdown('<div class="sec-title">📊 記事タイプ比率</div>', unsafe_allow_html=True)
+        pv_count = len(filtered[filtered["記事タイプ"] == "PV型"])
+        cv_count = len(filtered[filtered["記事タイプ"] == "CV型"])
+        total_typed = pv_count + cv_count
+        pv_pct = round(pv_count / total_typed * 100) if total_typed > 0 else 0
+        cv_pct = round(cv_count / total_typed * 100) if total_typed > 0 else 0
+        st.markdown(f"""
+            <div style="display:flex; justify-content:center; gap:24px; margin:12px 0;">
+                <div style="text-align:center;">
+                    <div style="font-size:28px; font-weight:700; color:#1565c0;">{pv_count}</div>
+                    <div style="font-size:12px; color:#607d8b;">ノウハウ（{pv_pct}%）</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:28px; font-weight:700; color:#c62828;">{cv_count}</div>
+                    <div style="font-size:12px; color:#607d8b;">CV（{cv_pct}%）</div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
         type_data = filtered["記事タイプ"].value_counts().reset_index()
         type_data.columns = ["タイプ", "件数"]
+        type_data["タイプ"] = type_data["タイプ"].replace({"PV型": "ノウハウ型"})
         if not type_data.empty:
             donut = alt.Chart(type_data).mark_arc(innerRadius=50).encode(
                 theta=alt.Theta("件数:Q"),
                 color=alt.Color("タイプ:N", scale=alt.Scale(
-                    domain=["PV型", "CV型"],
+                    domain=["ノウハウ型", "CV型"],
                     range=["#1565c0", "#c62828"]
-                ), legend=alt.Legend(orient="bottom")),
+                ), legend=None),
                 tooltip=["タイプ", "件数"]
-            ).properties(height=200)
+            ).properties(height=160)
             st.altair_chart(donut, use_container_width=True)
 
     with chart_c2:
@@ -942,6 +960,38 @@ with tab1:
                 tooltip=["分類", "件数"]
             ).properties(height=200)
             st.altair_chart(cat_bar, use_container_width=True)
+
+    st.markdown("")
+
+    # PV推移グラフ（全体）
+    st.markdown('<div class="sec-title">📈 サイト全体 PV推移</div>', unsafe_allow_html=True)
+    if not history_df.empty:
+        # history_dfから日別PV合計を集計
+        hist_copy = history_df.copy()
+        hist_copy["日付"] = pd.to_datetime(hist_copy["日付"])
+        daily_pv = hist_copy.groupby("日付")["PV"].sum().reset_index()
+
+        pv_line = alt.Chart(daily_pv).mark_area(
+            line={"color": "#1565c0"},
+            color=alt.Gradient(
+                gradient="linear",
+                stops=[
+                    alt.GradientStop(color="#1565c0", offset=1),
+                    alt.GradientStop(color="white", offset=0),
+                ],
+                x1=1, x2=1, y1=1, y2=0,
+            ),
+            opacity=0.3,
+        ).encode(
+            x=alt.X("日付:T", axis=alt.Axis(format="%m/%d", title=None)),
+            y=alt.Y("PV:Q", title="PV"),
+        ).properties(height=200)
+        line = alt.Chart(daily_pv).mark_line(color="#1565c0", strokeWidth=2).encode(
+            x="日付:T", y="PV:Q",
+        )
+        st.altair_chart(pv_line + line, use_container_width=True)
+    else:
+        st.caption("推移データなし（GSCデータを蓄積すると表示されます）")
 
     st.markdown("")
 
