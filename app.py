@@ -820,7 +820,7 @@ with tab1:
         st.markdown(f"""<div class="kpi-card">
             <div class="label">総記事数</div>
             <div class="value">{total}</div>
-            <div class="sub">{pv_type_count} ノウハウ(PV型) / {cv_type_count} CV型</div>
+            <div class="sub">{pv_type_count} ノウハウ / {cv_type_count} CV</div>
         </div>""", unsafe_allow_html=True)
     with c2:
         st.markdown(f"""<div class="kpi-card">
