@@ -1136,17 +1136,33 @@ with tab2:
         except (ValueError, TypeError):
             return ""
 
-    # === 表1: KW × 順位 ===
+    # === 表1: KW × 順位（ランクチェッカー風） ===
     st.markdown('<div class="sec-title">🔑 KW × 順位</div>', unsafe_allow_html=True)
-    kw_cols = ["メインKW", "メインKW順位", "サブKW", "サブKW順位", "分類", "記事タイプ", "ステータス"]
+    kw_cols = ["ステータス", "メインKW", "メインKW順位", "サブKW", "サブKW順位", "分類", "記事タイプ"]
     kw_display = [c for c in kw_cols if c in tdf.columns]
     kw_df = tdf[kw_display].copy()
-    # KW順位の小数点を第1位に
+
+    # 順位の小数点を第1位に + 色付け用の数値保持
     for col in ["メインKW順位", "サブKW順位"]:
         if col in kw_df.columns:
             kw_df[col] = kw_df[col].apply(lambda x: f"{float(x):.1f}" if x != "-" and x != "" else "-")
 
+    def kw_pos_color(val):
+        if val == "-": return ""
+        try:
+            v = float(val)
+            if v <= 3: return "background-color: #c8e6c9; color: #1b5e20; font-weight:600"
+            if v <= 10: return "background-color: #e8f5e9; color: #2e7d32"
+            if v <= 20: return "background-color: #fff8e1; color: #f57f17"
+            if v <= 50: return "background-color: #fff3e0; color: #e65100"
+            return "background-color: #ffebee; color: #c62828"
+        except (ValueError, TypeError):
+            return ""
+
     kw_styled = kw_df.style
+    for col in ["メインKW順位", "サブKW順位"]:
+        if col in kw_df.columns:
+            kw_styled = kw_styled.applymap(kw_pos_color, subset=[col])
     if "ステータス" in kw_df.columns:
         kw_styled = kw_styled.applymap(
             lambda v: "color: #c62828; font-weight:600" if v in ["要改善", "圏外"] else ("color: #2e7d32" if v == "正常" else ""),
@@ -1156,7 +1172,7 @@ with tab2:
 
     # === 表2: パフォーマンス ===
     st.markdown('<div class="sec-title">📊 パフォーマンス</div>', unsafe_allow_html=True)
-    perf_cols = ["メインKW", "PV比", "現PV", "先月PV", "順位", "順位変動", "Impr", "Click", "CTR"]
+    perf_cols = ["メインKW", "Impr", "Click", "CTR", "現PV", "先月PV", "PV比", "順位", "順位変動"]
     perf_display = [c for c in perf_cols if c in tdf.columns]
     perf_df = tdf[perf_display].copy()
 
