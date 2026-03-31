@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 import random
 import os
 import json
-from lib.spreadsheet import get_all_articles, get_all_tasks
+from lib.spreadsheet import get_all_articles, get_all_tasks, save_gsc_pages, save_gsc_queries, get_gsc_pages, get_gsc_queries
 
 # ページ設定
 st.set_page_config(page_title="記事管理DB", page_icon="📊", layout="wide")
@@ -30,15 +30,25 @@ with st.sidebar:
         import zipfile, io
 
         def process_gsc_csv(csv_df, filename=""):
-            """CSVを自動判定してページ別/クエリ別に振り分け"""
+            """CSVを自動判定してページ別/クエリ別に振り分け → スプシにも保存"""
             first_col_vals = csv_df.iloc[:, 0].astype(str)
             is_pages = first_col_vals.str.startswith("http").any()
             if is_pages:
                 csv_df.to_csv(GSC_PAGES_PATH, index=False)
-                st.success(f"✅ ページ別 {len(csv_df)}行 保存済み")
+                try:
+                    save_gsc_pages(csv_df)
+                    st.success(f"✅ ページ別 {len(csv_df)}行 保存済み（スプシ同期OK）")
+                except Exception as e:
+                    st.success(f"✅ ページ別 {len(csv_df)}行 ローカル保存済み")
+                    st.warning(f"⚠️ スプシ同期失敗: {e}")
             else:
                 csv_df.to_csv(GSC_QUERIES_PATH, index=False)
-                st.success(f"✅ クエリ別 {len(csv_df)}行 保存済み")
+                try:
+                    save_gsc_queries(csv_df)
+                    st.success(f"✅ クエリ別 {len(csv_df)}行 保存済み（スプシ同期OK）")
+                except Exception as e:
+                    st.success(f"✅ クエリ別 {len(csv_df)}行 ローカル保存済み")
+                    st.warning(f"⚠️ スプシ同期失敗: {e}")
 
         if gsc_file.name.endswith(".zip"):
             # zip展開して中のCSVを全部処理
@@ -64,14 +74,24 @@ with st.sidebar:
 
     # 保存済みデータの状況
     st.markdown("**📊 保存済みデータ**")
-    if os.path.exists(GSC_PAGES_PATH):
+    # ローカルかスプシ、どちらかにあればOK
+    pages_local = os.path.exists(GSC_PAGES_PATH)
+    pages_cloud = get_gsc_pages() if not pages_local else None
+    if pages_local:
         saved_pages = pd.read_csv(GSC_PAGES_PATH)
         st.caption(f"ページ別: {len(saved_pages)}行")
+    elif pages_cloud is not None and not pages_cloud.empty:
+        st.caption(f"ページ別: {len(pages_cloud)}行（スプシ）")
     else:
         st.caption("ページ別: なし")
-    if os.path.exists(GSC_QUERIES_PATH):
+
+    queries_local = os.path.exists(GSC_QUERIES_PATH)
+    queries_cloud = get_gsc_queries() if not queries_local else None
+    if queries_local:
         saved_queries = pd.read_csv(GSC_QUERIES_PATH)
         st.caption(f"クエリ別: {len(saved_queries)}行")
+    elif queries_cloud is not None and not queries_cloud.empty:
+        st.caption(f"クエリ別: {len(queries_cloud)}行（スプシ）")
     else:
         st.caption("クエリ別: なし")
 
@@ -189,20 +209,27 @@ def load_gsc_real_data():
     """GSC CSVからほんべ記事の実データを読み込み、記事管理DBフォーマットに変換"""
     from data.real_articles import REAL_ARTICLES
 
-    if not os.path.exists(GSC_PAGES_PATH):
+    # ページ別データ読み込み（ローカル → スプシの順で探す）
+    gsc_pages = None
+    if os.path.exists(GSC_PAGES_PATH):
+        gsc_pages = pd.read_csv(GSC_PAGES_PATH)
+    else:
+        gsc_pages = get_gsc_pages()
+
+    if gsc_pages is None or gsc_pages.empty:
         return None, None
 
-    # ページ別データ読み込み
-    gsc_pages = pd.read_csv(GSC_PAGES_PATH)
     # ヘッダー名を統一（GSCエクスポートは「上位のページ」「掲載順位」等）
     col_map_pages = {gsc_pages.columns[0]: "URL", gsc_pages.columns[1]: "クリック数", gsc_pages.columns[2]: "表示回数", gsc_pages.columns[3]: "CTR", gsc_pages.columns[4]: "順位"}
     gsc_pages = gsc_pages.rename(columns=col_map_pages)
     gsc_pages["CTR"] = gsc_pages["CTR"].astype(str).str.replace("%", "").astype(float)
 
-    # クエリ別データ（あれば）
+    # クエリ別データ（ローカル → スプシ）
     gsc_queries = None
     if os.path.exists(GSC_QUERIES_PATH):
         gsc_queries = pd.read_csv(GSC_QUERIES_PATH)
+    else:
+        gsc_queries = get_gsc_queries()
         col_map_q = {gsc_queries.columns[0]: "クエリ", gsc_queries.columns[1]: "クリック数", gsc_queries.columns[2]: "表示回数", gsc_queries.columns[3]: "CTR", gsc_queries.columns[4]: "順位"}
         gsc_queries = gsc_queries.rename(columns=col_map_q)
         gsc_queries["CTR"] = gsc_queries["CTR"].astype(str).str.replace("%", "").astype(float)
@@ -468,10 +495,14 @@ def load_from_spreadsheet():
     articles = []
     assignees = ["札幌A", "札幌B", "東京C", "東京D", "インターンE", "インターンF"]
 
-    # GSCデータ読み込み（あれば）
+    # GSCデータ読み込み（ローカル → スプシの順で探す）
     gsc_pages = None
     if os.path.exists(GSC_PAGES_PATH):
         gsc_pages = pd.read_csv(GSC_PAGES_PATH)
+    else:
+        gsc_pages = get_gsc_pages()
+
+    if gsc_pages is not None and not gsc_pages.empty:
         col_map = {gsc_pages.columns[0]: "URL", gsc_pages.columns[1]: "クリック数",
                    gsc_pages.columns[2]: "表示回数", gsc_pages.columns[3]: "CTR", gsc_pages.columns[4]: "順位"}
         gsc_pages = gsc_pages.rename(columns=col_map)

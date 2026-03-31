@@ -202,6 +202,72 @@ def get_intern_tasks(intern_name: str) -> list[dict]:
             if t.get("インターン名") == intern_name and t.get("ステータス") != "完了"]
 
 
+# ==================
+# GSCデータのスプシ転記
+# ==================
+GSC_PAGES_TAB = "_GSC_ページ"
+GSC_QUERIES_TAB = "_GSC_クエリ"
+
+
+def save_gsc_pages(df) -> int:
+    """ページ別GSCデータをスプシに保存（上書き）"""
+    sh = get_spreadsheet()
+    try:
+        ws = sh.worksheet(GSC_PAGES_TAB)
+        ws.clear()
+    except gspread.exceptions.WorksheetNotFound:
+        ws = sh.add_worksheet(title=GSC_PAGES_TAB, rows=max(len(df) + 1, 100), cols=10)
+
+    # ヘッダー + データを書き込み
+    headers = df.columns.tolist()
+    rows = [headers] + df.astype(str).values.tolist()
+    ws.update(values=rows, range_name=f"A1:{chr(64 + len(headers))}{len(rows)}")
+    return len(df)
+
+
+def save_gsc_queries(df) -> int:
+    """クエリ別GSCデータをスプシに保存（上書き）"""
+    sh = get_spreadsheet()
+    try:
+        ws = sh.worksheet(GSC_QUERIES_TAB)
+        ws.clear()
+    except gspread.exceptions.WorksheetNotFound:
+        ws = sh.add_worksheet(title=GSC_QUERIES_TAB, rows=max(len(df) + 1, 100), cols=10)
+
+    headers = df.columns.tolist()
+    rows = [headers] + df.astype(str).values.tolist()
+    ws.update(values=rows, range_name=f"A1:{chr(64 + len(headers))}{len(rows)}")
+    return len(df)
+
+
+def get_gsc_pages():
+    """スプシからページ別GSCデータを読み込み"""
+    sh = get_spreadsheet()
+    try:
+        ws = sh.worksheet(GSC_PAGES_TAB)
+        records = ws.get_all_records()
+        if records:
+            import pandas as pd
+            return pd.DataFrame(records)
+    except gspread.exceptions.WorksheetNotFound:
+        pass
+    return None
+
+
+def get_gsc_queries():
+    """スプシからクエリ別GSCデータを読み込み"""
+    sh = get_spreadsheet()
+    try:
+        ws = sh.worksheet(GSC_QUERIES_TAB)
+        records = ws.get_all_records()
+        if records:
+            import pandas as pd
+            return pd.DataFrame(records)
+    except gspread.exceptions.WorksheetNotFound:
+        pass
+    return None
+
+
 def complete_intern_task(task_id: int) -> dict | None:
     """インターンタスクを完了にする"""
     ws = _get_or_create_intern_tab()
