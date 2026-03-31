@@ -508,12 +508,23 @@ def load_from_spreadsheet():
         gsc_pages = gsc_pages.rename(columns=col_map)
         gsc_pages["CTR"] = gsc_pages["CTR"].astype(str).str.replace("%", "").astype(float)
 
+    # SEO対象外のURLパターン
+    EXCLUDE_SLUGS = [
+        "contactform", "contact", "privacy-policy", "thanks",
+        "sitemap", "404", "category", "tag", "author",
+    ]
+
     for art in raw_articles:
         site = art.get("サイト", "")
         title = art.get("記事タイトル", art.get("タイトル", ""))
         url = art.get("URL", art.get("記事URL", ""))
         if not url:
             url = "（未公開）"
+
+        # SEO対象外の記事を除外
+        slug = url.rstrip("/").split("/")[-1] if url.startswith("http") else ""
+        if any(ex in slug for ex in EXCLUDE_SLUGS):
+            continue
 
         # GSCとマッチング
         clicks, impressions, ctr, position = 0, 0, 0, 999
@@ -884,7 +895,7 @@ with tab2:
     tdf = tdf.copy()
     tdf["スラッグ"] = tdf["URL"].apply(lambda x: x.rstrip("/").split("/")[-1] if isinstance(x, str) and x.startswith("http") else "-")
 
-    all_display_cols = ["ステータス", "サイト", "分類", "タイトル", "スラッグ", "PV比", "先月PV", "現PV", "順位", "順位変動", "Impr", "Click", "CTR", "公開日", "前回更新", "URL"]
+    all_display_cols = ["ステータス", "サイト", "メインKW", "分類", "記事タイプ", "タイトル", "PV比", "先月PV", "現PV", "順位", "順位変動", "Impr", "Click", "CTR", "公開日", "前回更新", "URL"]
     display_cols = [c for c in all_display_cols if c in tdf.columns]
     st.markdown(f'<div class="sec-title">📋 {len(tdf)}件表示</div>', unsafe_allow_html=True)
 
