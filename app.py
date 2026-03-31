@@ -850,7 +850,7 @@ if genre_filter != "全体":
 # =====================
 # タブ
 # =====================
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 概要", "📋 記事一覧", "🔔 アラート", "📈 効果計測", "👥 メンバー"])
+tab1, tab2, tab3, tab5 = st.tabs(["📊 概要", "📋 記事一覧", "🔔 アラート", "👥 メンバー"])
 
 
 # ========== 概要タブ ==========
@@ -1051,35 +1051,6 @@ with tab1:
         st.altair_chart(pv_line + line, use_container_width=True)
     else:
         st.caption("推移データなし（GSCデータを蓄積すると表示されます）")
-
-    st.markdown("")
-
-    # === 競合比較（Ahrefsデータ） ===
-    st.markdown('<div class="sec-title">🏆 競合比較（Ahrefs）</div>', unsafe_allow_html=True)
-
-    # ほんべの競合データ（Ahrefs APIから取得済み）
-    competitors_data = [
-        {"ドメイン": "honbe-clinic.jp（自社）", "DR": 28, "共通KW": "-", "月間トラフィック": "17K", "シェア": "-"},
-        {"ドメイン": "senshinkai-clinic.jp", "DR": 44, "共通KW": 695, "月間トラフィック": "165K", "シェア": "8.5%"},
-        {"ドメイン": "sbc-lasik.jp", "DR": 41, "共通KW": 363, "月間トラフィック": "46K", "シェア": "19.5%"},
-        {"ドメイン": "shinagawa-lasik.com", "DR": 50, "共通KW": 331, "月間トラフィック": "30K", "シェア": "20.5%"},
-        {"ドメイン": "miyata-med.ne.jp", "DR": 41, "共通KW": 295, "月間トラフィック": "87K", "シェア": "5.2%"},
-        {"ドメイン": "nakamichi-eyeclinic.com", "DR": 13, "共通KW": 289, "月間トラフィック": "55K", "シェア": "9.3%"},
-    ]
-    comp_df = pd.DataFrame(competitors_data)
-
-    def dr_color(val):
-        try:
-            v = int(val)
-            if v >= 50: return "color: #c62828; font-weight:600"
-            if v >= 30: return "color: #e65100"
-            return "color: #2e7d32"
-        except (ValueError, TypeError):
-            return ""
-
-    comp_styled = comp_df.style.applymap(dr_color, subset=["DR"])
-    st.dataframe(comp_styled, use_container_width=True, hide_index=True)
-    st.caption("※ Ahrefsデータ（2026/3/30取得）。シェア = 共通KW / 全KWの割合")
 
     st.markdown("")
 
@@ -1325,66 +1296,6 @@ with tab3:
                 <div class="a-sub">{days_over}日超過 | 担当: {row['担当'] if row['担当'] else '未割当'}</div>
             </div>""", unsafe_allow_html=True)
 
-
-# ========== 効果計測タブ（NEW） ==========
-with tab4:
-    st.markdown('<div class="sec-title">📈 更新後の効果計測</div>', unsafe_allow_html=True)
-    st.caption("前回更新がある記事の、更新前後のPV・順位変化を表示")
-
-    updated_articles = filtered[filtered["前回更新"] != "-"].copy()
-
-    if updated_articles.empty:
-        st.info("更新済み記事がありません")
-    else:
-        # 効果スコア計算（ダミー: PV比と順位変動から推定）
-        updated_articles["効果スコア"] = updated_articles.apply(
-            lambda r: "改善" if r["PV比"] >= 100 and r["順位変動"] <= 0 else ("悪化" if r["PV比"] < 80 else "横ばい"), axis=1
-        )
-
-        # サマリー
-        improved = len(updated_articles[updated_articles["効果スコア"] == "改善"])
-        worsened = len(updated_articles[updated_articles["効果スコア"] == "悪化"])
-        flat = len(updated_articles[updated_articles["効果スコア"] == "横ばい"])
-
-        ec1, ec2, ec3 = st.columns(3)
-        with ec1:
-            st.markdown(f"""<div class="kpi-card">
-                <div class="label">改善</div>
-                <div class="value" style="color: #2e7d32">{improved}件</div>
-                <div class="sub">PV100%以上 & 順位維持/改善</div>
-            </div>""", unsafe_allow_html=True)
-        with ec2:
-            st.markdown(f"""<div class="kpi-card">
-                <div class="label">横ばい</div>
-                <div class="value" style="color: #f9a825">{flat}件</div>
-                <div class="sub">PV80-100%</div>
-            </div>""", unsafe_allow_html=True)
-        with ec3:
-            st.markdown(f"""<div class="kpi-card">
-                <div class="label">悪化</div>
-                <div class="value" style="color: #c62828">{worsened}件</div>
-                <div class="sub">更新しても PV80%以下</div>
-            </div>""", unsafe_allow_html=True)
-
-        st.markdown("")
-
-        # 記事ごとの効果
-        for score_label, score_cls in [("改善", "up"), ("横ばい", "flat"), ("悪化", "down")]:
-            subset = updated_articles[updated_articles["効果スコア"] == score_label].sort_values("PV比", ascending=(score_label == "悪化"))
-            if not subset.empty:
-                icon = {"改善": "🟢", "横ばい": "🟡", "悪化": "🔴"}[score_label]
-                st.markdown(f'<div class="sec-title">{icon} {score_label}（{len(subset)}件）</div>', unsafe_allow_html=True)
-                for _, row in subset.iterrows():
-                    with st.expander(f"{icon} {row['メインKW']}（{row['ジャンル']}・{row['分類']}）— PV {row['PV比']}% / 順位 {row['順位変動']:+.1f}"):
-                        erc1, erc2 = st.columns(2)
-                        with erc1:
-                            st.metric("PV前月比", f"{row['PV比']}%", delta=f"{row['PV比'] - 100}%")
-                            st.metric("順位変動", f"{row['順位']}", delta=f"{row['順位変動']:+.1f}", delta_color="inverse")
-                        with erc2:
-                            sel_h = history_df[history_df["ID"] == row["ID"]]
-                            if not sel_h.empty:
-                                st.altair_chart(draw_sparkline(sel_h, "PV", "#1565c0" if score_label != "悪化" else "#c62828"), use_container_width=True)
-                        st.caption(f"更新日: {row['前回更新']} | 担当: {row['担当'] if row['担当'] else '未割当'}")
 
 
 # ========== メンバータブ ==========
