@@ -674,7 +674,7 @@ def load_from_spreadsheet():
         if gsc_queries is not None and main_kw:
             mkw_match = gsc_queries[gsc_queries["クエリ_lower"] == main_kw.lower()]
             if not mkw_match.empty:
-                main_kw_pos = mkw_match.iloc[0]["順位"]
+                main_kw_pos = round(float(mkw_match.iloc[0]["順位"]), 1)
         if gsc_queries is not None and sub_kw:
             for skw in sub_kw.split(","):
                 skw = skw.strip()
@@ -682,7 +682,7 @@ def load_from_spreadsheet():
                     continue
                 skw_match = gsc_queries[gsc_queries["クエリ_lower"] == skw.lower()]
                 if not skw_match.empty:
-                    sub_kw_pos = skw_match.iloc[0]["順位"]
+                    sub_kw_pos = round(float(skw_match.iloc[0]["順位"]), 1)
                     break
 
         articles.append({
@@ -1101,50 +1101,49 @@ with tab2:
     s_col, s_asc = sort_map[sort_option]
     tdf = tdf.sort_values(s_col, ascending=s_asc)
 
-    # スラッグ列を追加（URLから生成）
     tdf = tdf.copy()
-    tdf["スラッグ"] = tdf["URL"].apply(lambda x: x.rstrip("/").split("/")[-1] if isinstance(x, str) and x.startswith("http") else "-")
-
-    all_display_cols = ["ステータス", "サイト", "メインKW", "メインKW順位", "サブKW", "サブKW順位", "分類", "記事タイプ", "タイトル", "PV比", "先月PV", "現PV", "順位", "順位変動", "Impr", "Click", "CTR", "公開日", "前回更新", "URL"]
-    display_cols = [c for c in all_display_cols if c in tdf.columns]
     st.markdown(f'<div class="sec-title">📋 {len(tdf)}件表示</div>', unsafe_allow_html=True)
 
-    # 順位の圏外表示用にコピー
-    display_df = tdf[display_cols].copy()
-    if "順位" in display_df.columns:
-        display_df["順位"] = display_df["順位"].apply(lambda x: "圏外" if x >= 100 else f"{x:.1f}")
-        display_df = display_df.rename(columns={"順位": "平均順位"})
+    # カード形式で記事一覧（KW+順位+ステータス → クリックで詳細展開）
+    for _, row in tdf.iterrows():
+        # ステータスアイコン
+        if row.get("ステータス") == "圏外":
+            icon = "⚫"
+        elif row.get("PV比", 100) < 60:
+            icon = "🔴"
+        elif row.get("PV比", 100) < 80:
+            icon = "🟡"
+        else:
+            icon = "🟢"
 
-    def pos_color_with_rankout(val):
-        if val == "圏外": return "background-color: #d32f2f; color: white"
-        try:
-            return pos_color(float(val))
-        except (ValueError, TypeError):
-            return ""
+        # メインKW順位の表示
+        mkw_pos = row.get("メインKW順位", "-")
+        mkw_pos_str = f"{mkw_pos}" if mkw_pos != "-" else "—"
 
-    style_maps = []
-    if "平均順位" in display_df.columns:
-        style_maps.append(("平均順位", pos_color_with_rankout))
-    if "順位変動" in display_df.columns:
-        style_maps.append(("順位変動", change_color))
-    if "PV比" in display_df.columns:
-        style_maps.append(("PV比", pv_color))
+        # ヘッダー行
+        header = f"{icon} **{row['メインKW']}** — 順位 {mkw_pos_str} | PV比 {row['PV比']}% | {row.get('分類', '')} / {row.get('記事タイプ', '')}"
 
-    styled = display_df.style
-    for col, func in style_maps:
-        styled = styled.applymap(func, subset=[col])
+        with st.expander(header):
+            # KW情報
+            kw_c1, kw_c2, kw_c3, kw_c4 = st.columns(4)
+            kw_c1.metric("メインKW順位", mkw_pos_str)
+            skw = row.get("サブKW", "")
+            skw_pos = row.get("サブKW順位", "-")
+            kw_c2.metric("サブKW順位", f"{skw_pos}" if skw_pos != "-" else "—", help=skw if skw else None)
+            avg_pos = row.get("順位", 999)
+            kw_c3.metric("平均順位", "圏外" if avg_pos >= 100 else f"{avg_pos:.1f}", delta=f"{row.get('順位変動', 0):+.1f}", delta_color="inverse")
+            kw_c4.metric("PV前月比", f"{row['PV比']}%")
 
-    fmt = {}
-    if "順位変動" in display_df.columns:
-        fmt["順位変動"] = "{:+.1f}"
-    if "CTR" in display_df.columns:
-        fmt["CTR"] = "{:.1f}%"
-    if "PV比" in display_df.columns:
-        fmt["PV比"] = "{}%"
-    if fmt:
-        styled = styled.format(fmt)
+            # パフォーマンス
+            pf_c1, pf_c2, pf_c3, pf_c4 = st.columns(4)
+            pf_c1.metric("現PV", f"{row.get('現PV', 0):,}")
+            pf_c2.metric("先月PV", f"{row.get('先月PV', 0):,}")
+            pf_c3.metric("Impr", f"{row.get('Impr', 0):,}")
+            pf_c4.metric("CTR", f"{row.get('CTR', 0):.1f}%")
 
-    st.dataframe(styled, use_container_width=True, height=600)
+            # 記事情報
+            st.caption(f"📄 {row.get('タイトル', '')}")
+            st.caption(f"🔗 {row.get('URL', '')} | 公開: {row.get('公開日', '-')} | 更新: {row.get('前回更新', '-')} | 担当: {row.get('担当', '-')}")
 
     # 記事詳細（推移グラフ）
     st.markdown('<div class="sec-title">🔍 記事詳細（推移グラフ）</div>', unsafe_allow_html=True)
