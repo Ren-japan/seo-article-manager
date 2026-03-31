@@ -918,7 +918,13 @@ with tab2:
     with fc2:
         status_filter = st.selectbox("ステータス", ["すべて", "未対応", "対応中", "完了", "監視中"], key="st_f")
     with fc3:
-        sort_option = st.selectbox("並び替え", ["PV比（低い順）", "順位（悪い順）", "順位変動（大きい順）", "Impr（多い順）"], key="sort_f")
+        sort_option = st.selectbox("並び替え", [
+            "PV比（低い順）", "PV比（高い順）",
+            "順位（悪い順）", "順位（良い順）",
+            "順位変動（大きい順）", "順位変動（小さい順）",
+            "Impr（多い順）", "Impr（少ない順）",
+            "Click（多い順）", "Click（少ない順）",
+        ], key="sort_f")
     with fc4:
         pv_alert_only = st.checkbox("🔴 PVアラートのみ", key="pv_alert")
 
@@ -932,9 +938,15 @@ with tab2:
 
     sort_map = {
         "PV比（低い順）": ("PV比", True),
+        "PV比（高い順）": ("PV比", False),
         "順位（悪い順）": ("順位", False),
+        "順位（良い順）": ("順位", True),
         "順位変動（大きい順）": ("順位変動", False),
+        "順位変動（小さい順）": ("順位変動", True),
         "Impr（多い順）": ("Impr", False),
+        "Impr（少ない順）": ("Impr", True),
+        "Click（多い順）": ("Click", False),
+        "Click（少ない順）": ("Click", True),
     }
     s_col, s_asc = sort_map[sort_option]
     tdf = tdf.sort_values(s_col, ascending=s_asc)
