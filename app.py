@@ -1172,7 +1172,7 @@ with tab2:
 
     # === 表2: パフォーマンス ===
     st.markdown('<div class="sec-title">📊 パフォーマンス</div>', unsafe_allow_html=True)
-    perf_cols = ["メインKW", "Impr", "Click", "CTR", "現PV", "先月PV", "PV比", "順位", "順位変動"]
+    perf_cols = ["メインKW", "Impr", "CTR", "現PV", "先月PV", "PV比", "順位", "順位変動"]
     perf_display = [c for c in perf_cols if c in tdf.columns]
     perf_df = tdf[perf_display].copy()
 
