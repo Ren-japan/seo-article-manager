@@ -1287,67 +1287,78 @@ with tab2:
 
 # ========== アラートタブ ==========
 with tab3:
-    ac1, ac2, ac3 = st.columns(3)
+    today_str = datetime.now().strftime("%Y/%m/%d")
 
-    with ac1:
-        pv_alerts_full = filtered[filtered["PV比"] < 80].sort_values("PV比")
-        pv_a_pv = len(pv_alerts_full[pv_alerts_full["記事タイプ"] == "PV型"]) if "記事タイプ" in pv_alerts_full.columns else 0
-        pv_a_cv = len(pv_alerts_full[pv_alerts_full["記事タイプ"] == "CV型"]) if "記事タイプ" in pv_alerts_full.columns else 0
-        st.markdown(f'<div class="sec-title">🔴 PVアラート（{len(pv_alerts_full)}件: ノウハウ{pv_a_pv} / CV{pv_a_cv}）</div>', unsafe_allow_html=True)
-        if pv_alerts_full.empty:
-            st.success("なし")
-        for _, row in pv_alerts_full.iterrows():
+    # アラート対象記事を統合（PV低下 or 順位急落 or 期限切れ、いずれか該当）
+    alert_all = filtered.copy()
+    alert_all["_pv_alert"] = alert_all["PV比"] < 80
+    alert_all["_pos_alert"] = alert_all["順位変動"] >= 5
+    alert_all["_overdue"] = (alert_all["更新期限"] < today_str) & (alert_all["ステータス"] != "完了")
+    alert_all = alert_all[alert_all["_pv_alert"] | alert_all["_pos_alert"] | alert_all["_overdue"]]
+
+    # サマリー
+    pv_count = len(alert_all[alert_all["_pv_alert"]])
+    pos_count = len(alert_all[alert_all["_pos_alert"]])
+    overdue_count = len(alert_all[alert_all["_overdue"]])
+
+    sc1, sc2, sc3, sc4 = st.columns(4)
+    with sc1:
+        st.markdown(f"""<div class="kpi-card">
+            <div class="label">アラート記事</div>
+            <div class="value" style="color: #c62828">{len(alert_all)}</div>
+        </div>""", unsafe_allow_html=True)
+    with sc2:
+        st.markdown(f"""<div class="kpi-card">
+            <div class="label">📉 PV低下</div>
+            <div class="value">{pv_count}</div>
+        </div>""", unsafe_allow_html=True)
+    with sc3:
+        st.markdown(f"""<div class="kpi-card">
+            <div class="label">⚡ 順位急落</div>
+            <div class="value">{pos_count}</div>
+        </div>""", unsafe_allow_html=True)
+    with sc4:
+        st.markdown(f"""<div class="kpi-card">
+            <div class="label">⏰ 期限切れ</div>
+            <div class="value">{overdue_count}</div>
+        </div>""", unsafe_allow_html=True)
+
+    st.markdown("")
+
+    # 統合アラートリスト
+    if alert_all.empty:
+        st.success("アラートなし 🎉")
+    else:
+        alert_sorted = alert_all.sort_values("PV比")
+        for _, row in alert_sorted.iterrows():
+            # タグ生成
+            tags = []
+            if row["_pv_alert"]:
+                tags.append("📉 PV低下")
+            if row["_pos_alert"]:
+                tags.append("⚡ 順位急落")
+            if row["_overdue"]:
+                try:
+                    days_over = (datetime.now() - datetime.strptime(row["更新期限"], "%Y/%m/%d")).days
+                    tags.append(f"⏰ {days_over}日超過")
+                except:
+                    tags.append("⏰ 期限切れ")
+            tags_html = " ".join([f'<span style="background:#fce4ec; color:#c62828; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:600; margin-right:4px;">{t}</span>' for t in tags])
+
             cls = "danger" if row["PV比"] < 60 else "warning"
-            with st.expander(f"{'🔴' if cls == 'danger' else '🟡'} {row['メインKW']} — 前月比 {row['PV比']}%"):
+            mkw_pos = row.get("メインKW順位", "-")
+            mkw_pos_str = f"{float(mkw_pos):.1f}" if mkw_pos != "-" and mkw_pos != "" else "—"
+            skw_pos = row.get("サブKW順位", "-")
+            skw_pos_str = f"{float(skw_pos):.1f}" if skw_pos != "-" and skw_pos != "" else "—"
+
+            with st.expander(f"{'🔴' if cls == 'danger' else '🟡'} {row['メインKW']}（{row['サイト']}）— PV {row['PV比']}%"):
+                st.markdown(tags_html, unsafe_allow_html=True)
                 mc1, mc2, mc3, mc4 = st.columns(4)
-                mc1.metric("現PV", f"{row['現PV']:,}")
-                mc2.metric("先月PV", f"{row['先月PV']:,}")
-                pos_display = "圏外" if row["順位"] >= 100 else f"{row['順位']:.1f}"
-                mc3.metric("順位", pos_display, delta=f"{row['順位変動']:+.1f}", delta_color="inverse")
-                mc4.metric("CTR", f"{row['CTR']}%")
-                article_type_label = row.get('記事タイプ', '')
-                st.caption(f"{row['ジャンル']} / {row['分類']} / {article_type_label} / 担当: {row['担当'] if row['担当'] else '未割当'}")
-                # ミニ推移
-                sel_h = history_df[history_df["ID"] == row["ID"]]
-                if not sel_h.empty:
-                    st.altair_chart(draw_sparkline(sel_h, "PV", "#c62828"), use_container_width=True)
-
-    with ac2:
-        pos_alerts_full = filtered[filtered["順位変動"] >= 5].sort_values("順位変動", ascending=False)
-        pos_a_pv = len(pos_alerts_full[pos_alerts_full["記事タイプ"] == "PV型"]) if "記事タイプ" in pos_alerts_full.columns else 0
-        pos_a_cv = len(pos_alerts_full[pos_alerts_full["記事タイプ"] == "CV型"]) if "記事タイプ" in pos_alerts_full.columns else 0
-        st.markdown(f'<div class="sec-title">⚡ 順位急落（{len(pos_alerts_full)}件: ノウハウ{pos_a_pv} / CV{pos_a_cv}）</div>', unsafe_allow_html=True)
-        if pos_alerts_full.empty:
-            st.success("なし")
-        for _, row in pos_alerts_full.iterrows():
-            with st.expander(f"⚡ {row['メインKW']} — {row['順位変動']:+.1f}位"):
-                mc1, mc2, mc3 = st.columns(3)
-                pos_display = "圏外" if row["順位"] >= 100 else f"{row['順位']:.1f}"
-                mc1.metric("順位", pos_display, delta=f"{row['順位変動']:+.1f}", delta_color="inverse")
-                mc2.metric("PV前月比", f"{row['PV比']}%")
-                if "競合変動" in row.index:
-                    mc3.metric("競合変動", f"{row['競合変動']:+.1f}")
-                    st.caption(f"競合が{'改善' if row['競合変動'] < 0 else '悪化'}傾向 → {'競合に抜かれた可能性' if row['競合変動'] < 0 else '自社の問題の可能性'}")
-                sel_h = history_df[history_df["ID"] == row["ID"]]
-                if not sel_h.empty:
-                    st.altair_chart(draw_sparkline(sel_h, "順位", "#c62828"), use_container_width=True)
-
-    with ac3:
-        st.markdown('<div class="sec-title">⏰ 更新期限切れ</div>', unsafe_allow_html=True)
-        today_str = datetime.now().strftime("%Y/%m/%d")
-        overdue_df = filtered[(filtered["更新期限"] < today_str) & (filtered["ステータス"] != "完了")].sort_values("更新期限")
-        if overdue_df.empty:
-            st.success("なし")
-        for _, row in overdue_df.iterrows():
-            try:
-                days_over = (datetime.now() - datetime.strptime(row["更新期限"], "%Y/%m/%d")).days
-            except:
-                days_over = 0
-            cls = "danger" if days_over > 14 else "warning"
-            st.markdown(f"""<div class="alert-card {cls}">
-                <div class="a-title">⏰ {row['メインKW']}（{row['ジャンル']}）</div>
-                <div class="a-sub">{days_over}日超過 | 担当: {row['担当'] if row['担当'] else '未割当'}</div>
-            </div>""", unsafe_allow_html=True)
+                mc1.metric("PV前月比", f"{row['PV比']}%")
+                mc2.metric("先月PV → 現PV", f"{row['先月PV']:,} → {row['現PV']:,}")
+                mc3.metric("メインKW順位", mkw_pos_str)
+                mc4.metric("サブKW順位", skw_pos_str)
+                st.caption(f"{row['分類']} / {row.get('記事タイプ', '')} / 担当: {row['担当'] if row['担当'] else '未割当'}")
 
 
 
