@@ -7,8 +7,10 @@ from google.oauth2.service_account import Credentials
 from datetime import datetime
 
 # スプシの設定
-SPREADSHEET_ID = "1X-jGv8TFHQ88UBHe8zXnRPKMDxus2EIHilEXAPmehIQ"
-TASK_TAB = "_タスク管理"  # タスク管理用タブ（新規作成）
+ARTICLES_SPREADSHEET_ID = "1X-jGv8TFHQ88UBHe8zXnRPKMDxus2EIHilEXAPmehIQ"  # 記事管理（uraraのスプシ）
+DATA_SPREADSHEET_ID = "1ZXt6-KJN6WE0AtAMcnrk7T672POkUTEsiKRce_jPMJ4"      # ダッシュボード用データ
+SPREADSHEET_ID = ARTICLES_SPREADSHEET_ID  # 後方互換
+TASK_TAB = "_タスク管理"
 CREDS_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "credentials.json")
 
 def get_client():
@@ -32,13 +34,19 @@ def get_client():
 
 
 def get_spreadsheet():
-    """スプシを開く"""
+    """記事管理スプシを開く"""
     gc = get_client()
-    return gc.open_by_key(SPREADSHEET_ID)
+    return gc.open_by_key(ARTICLES_SPREADSHEET_ID)
+
+
+def get_data_spreadsheet():
+    """ダッシュボード用データスプシを開く"""
+    gc = get_client()
+    return gc.open_by_key(DATA_SPREADSHEET_ID)
 
 
 def get_site_names() -> list[str]:
-    """スプシのタブ名からサイト一覧を取得（_で始まるタブは除外）"""
+    """記事管理スプシのタブ名からサイト一覧を取得"""
     sh = get_spreadsheet()
     return [ws.title for ws in sh.worksheets()
             if not ws.title.startswith("_") and ws.title.strip() != "シート1"]
@@ -76,7 +84,7 @@ def get_site_articles(site_name: str) -> list[dict]:
 # ==================
 def _get_or_create_task_tab():
     """タスク管理タブを取得（なければ作成）"""
-    sh = get_spreadsheet()
+    sh = get_data_spreadsheet()
     try:
         ws = sh.worksheet(TASK_TAB)
     except gspread.exceptions.WorksheetNotFound:
@@ -166,7 +174,7 @@ INTERN_TAB = "_インターンタスク"
 
 def _get_or_create_intern_tab():
     """インターンタスクタブを取得（なければ作成）"""
-    sh = get_spreadsheet()
+    sh = get_data_spreadsheet()
     try:
         ws = sh.worksheet(INTERN_TAB)
     except gspread.exceptions.WorksheetNotFound:
@@ -219,7 +227,7 @@ def _gsc_tab_name(site_name: str, data_type: str) -> str:
 
 def save_gsc_pages(df, site_name: str = "ほんべ") -> int:
     """ページ別GSCデータをスプシに保存（上書き）"""
-    sh = get_spreadsheet()
+    sh = get_data_spreadsheet()
     tab_name = _gsc_tab_name(site_name, "ページ")
     try:
         ws = sh.worksheet(tab_name)
@@ -235,7 +243,7 @@ def save_gsc_pages(df, site_name: str = "ほんべ") -> int:
 
 def save_gsc_queries(df, site_name: str = "ほんべ") -> int:
     """クエリ別GSCデータをスプシに保存（上書き）"""
-    sh = get_spreadsheet()
+    sh = get_data_spreadsheet()
     tab_name = _gsc_tab_name(site_name, "クエリ")
     try:
         ws = sh.worksheet(tab_name)
@@ -251,7 +259,7 @@ def save_gsc_queries(df, site_name: str = "ほんべ") -> int:
 
 def get_gsc_pages(site_name: str = "ほんべ"):
     """スプシからページ別GSCデータを読み込み"""
-    sh = get_spreadsheet()
+    sh = get_data_spreadsheet()
     tab_name = _gsc_tab_name(site_name, "ページ")
     try:
         ws = sh.worksheet(tab_name)
@@ -266,7 +274,7 @@ def get_gsc_pages(site_name: str = "ほんべ"):
 
 def get_gsc_queries(site_name: str = "ほんべ"):
     """スプシからクエリ別GSCデータを読み込み"""
-    sh = get_spreadsheet()
+    sh = get_data_spreadsheet()
     tab_name = _gsc_tab_name(site_name, "クエリ")
     try:
         ws = sh.worksheet(tab_name)
@@ -287,7 +295,7 @@ SITE_CONFIG_TAB = "_サイト設定"
 
 def _get_or_create_site_config_tab():
     """サイト設定タブを取得（なければ作成）"""
-    sh = get_spreadsheet()
+    sh = get_data_spreadsheet()
     try:
         ws = sh.worksheet(SITE_CONFIG_TAB)
     except gspread.exceptions.WorksheetNotFound:
