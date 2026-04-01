@@ -581,7 +581,10 @@ def generate_data():
 @st.cache_data(ttl=300)  # 5分キャッシュ
 def load_from_spreadsheet():
     """スプシから記事データを読み込み、ダッシュボード用フォーマットに変換"""
-    raw_articles = get_all_articles()
+    try:
+        raw_articles = get_all_articles()
+    except Exception:
+        return None
     if not raw_articles:
         return None
 
@@ -589,24 +592,30 @@ def load_from_spreadsheet():
     articles = []
     assignees = ["札幌A", "札幌B", "東京C", "東京D", "インターンE", "インターンF"]
 
-    # GSCデータ読み込み（全サイト分をマージ）
+    # GSCデータ読み込み（全サイト分をマージ。APIエラー時はスキップ）
+    gsc_pages = None
+    gsc_queries = None
     try:
         site_names = get_site_names()
+        all_pages = []
+        all_queries = []
+        for sn in site_names:
+            try:
+                p = get_gsc_pages(site_name=sn)
+                if p is not None and not p.empty and len(p.columns) >= 5:
+                    all_pages.append(p)
+            except Exception:
+                pass
+            try:
+                q = get_gsc_queries(site_name=sn)
+                if q is not None and not q.empty and len(q.columns) >= 5:
+                    all_queries.append(q)
+            except Exception:
+                pass
+        gsc_pages = pd.concat(all_pages, ignore_index=True) if all_pages else None
+        gsc_queries = pd.concat(all_queries, ignore_index=True) if all_queries else None
     except Exception:
-        site_names = ["ほんべ"]
-
-    all_pages = []
-    all_queries = []
-    for sn in site_names:
-        p = get_gsc_pages(site_name=sn)
-        if p is not None and not p.empty and len(p.columns) >= 5:
-            all_pages.append(p)
-        q = get_gsc_queries(site_name=sn)
-        if q is not None and not q.empty and len(q.columns) >= 5:
-            all_queries.append(q)
-
-    gsc_pages = pd.concat(all_pages, ignore_index=True) if all_pages else None
-    gsc_queries = pd.concat(all_queries, ignore_index=True) if all_queries else None
+        pass
 
     if gsc_pages is not None and not gsc_pages.empty:
         col_map = {gsc_pages.columns[0]: "URL", gsc_pages.columns[1]: "クリック数",
