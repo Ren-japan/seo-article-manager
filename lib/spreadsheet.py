@@ -220,15 +220,18 @@ def get_intern_tasks(intern_name: str) -> list[dict]:
 # ==================
 # GSCデータのスプシ転記
 # ==================
-def _gsc_tab_name(site_name: str, data_type: str) -> str:
-    """GSCタブ名を生成（例: _GSC_ほんべ_ページ）"""
-    return f"_GSC_{site_name}_{data_type}"
+def _gsc_tab_name(site_name: str, data_type: str, period: str = "") -> str:
+    """GSCタブ名を生成（例: _GSC_ほんべ_ページ_202603）"""
+    base = f"_GSC_{site_name}_{data_type}"
+    if period:
+        return f"{base}_{period}"
+    return base
 
 
-def save_gsc_pages(df, site_name: str = "ほんべ") -> int:
-    """ページ別GSCデータをスプシに保存（上書き）"""
+def save_gsc_pages(df, site_name: str = "ほんべ", period: str = "") -> int:
+    """ページ別GSCデータをスプシに保存（月別蓄積）"""
     sh = get_data_spreadsheet()
-    tab_name = _gsc_tab_name(site_name, "ページ")
+    tab_name = _gsc_tab_name(site_name, "ページ", period)
     try:
         ws = sh.worksheet(tab_name)
         ws.clear()
@@ -241,10 +244,10 @@ def save_gsc_pages(df, site_name: str = "ほんべ") -> int:
     return len(df)
 
 
-def save_gsc_queries(df, site_name: str = "ほんべ") -> int:
-    """クエリ別GSCデータをスプシに保存（上書き）"""
+def save_gsc_queries(df, site_name: str = "ほんべ", period: str = "") -> int:
+    """クエリ別GSCデータをスプシに保存（月別蓄積）"""
     sh = get_data_spreadsheet()
-    tab_name = _gsc_tab_name(site_name, "クエリ")
+    tab_name = _gsc_tab_name(site_name, "クエリ", period)
     try:
         ws = sh.worksheet(tab_name)
         ws.clear()
@@ -257,33 +260,106 @@ def save_gsc_queries(df, site_name: str = "ほんべ") -> int:
     return len(df)
 
 
-def get_gsc_pages(site_name: str = "ほんべ"):
-    """スプシからページ別GSCデータを読み込み"""
+def get_gsc_pages(site_name: str = "ほんべ", period: str = ""):
+    """スプシからページ別GSCデータを読み込み。periodなしなら最新を返す"""
+    import pandas as pd
     sh = get_data_spreadsheet()
-    tab_name = _gsc_tab_name(site_name, "ページ")
-    try:
-        ws = sh.worksheet(tab_name)
-        records = ws.get_all_records()
-        if records:
-            import pandas as pd
-            return pd.DataFrame(records)
-    except gspread.exceptions.WorksheetNotFound:
-        pass
+
+    if period:
+        tab_name = _gsc_tab_name(site_name, "ページ", period)
+        try:
+            ws = sh.worksheet(tab_name)
+            records = ws.get_all_records()
+            if records:
+                df = pd.DataFrame(records)
+                df["_period"] = period
+                return df
+        except gspread.exceptions.WorksheetNotFound:
+            pass
+        return None
+
+    # periodなし → 全期間のタブを探して最新を返す
+    prefix = f"_GSC_{site_name}_ページ"
+    all_dfs = []
+    for ws in sh.worksheets():
+        if ws.title.startswith(prefix):
+            try:
+                records = ws.get_all_records()
+                if records:
+                    df = pd.DataFrame(records)
+                    # タブ名から期間を抽出
+                    p = ws.title.replace(prefix, "").lstrip("_")
+                    df["_period"] = p if p else "latest"
+                    all_dfs.append(df)
+            except Exception:
+                pass
+
+    if all_dfs:
+        # 最新の期間を返す
+        combined = pd.concat(all_dfs, ignore_index=True)
+        latest_period = sorted(combined["_period"].unique())[-1]
+        return combined[combined["_period"] == latest_period].drop(columns=["_period"])
     return None
 
 
-def get_gsc_queries(site_name: str = "ほんべ"):
-    """スプシからクエリ別GSCデータを読み込み"""
+def get_gsc_queries(site_name: str = "ほんべ", period: str = ""):
+    """スプシからクエリ別GSCデータを読み込み。periodなしなら最新を返す"""
+    import pandas as pd
     sh = get_data_spreadsheet()
-    tab_name = _gsc_tab_name(site_name, "クエリ")
-    try:
-        ws = sh.worksheet(tab_name)
-        records = ws.get_all_records()
-        if records:
-            import pandas as pd
-            return pd.DataFrame(records)
-    except gspread.exceptions.WorksheetNotFound:
-        pass
+
+    if period:
+        tab_name = _gsc_tab_name(site_name, "クエリ", period)
+        try:
+            ws = sh.worksheet(tab_name)
+            records = ws.get_all_records()
+            if records:
+                df = pd.DataFrame(records)
+                df["_period"] = period
+                return df
+        except gspread.exceptions.WorksheetNotFound:
+            pass
+        return None
+
+    prefix = f"_GSC_{site_name}_クエリ"
+    all_dfs = []
+    for ws in sh.worksheets():
+        if ws.title.startswith(prefix):
+            try:
+                records = ws.get_all_records()
+                if records:
+                    df = pd.DataFrame(records)
+                    p = ws.title.replace(prefix, "").lstrip("_")
+                    df["_period"] = p if p else "latest"
+                    all_dfs.append(df)
+            except Exception:
+                pass
+
+    if all_dfs:
+        combined = pd.concat(all_dfs, ignore_index=True)
+        latest_period = sorted(combined["_period"].unique())[-1]
+        return combined[combined["_period"] == latest_period].drop(columns=["_period"])
+    return None
+
+
+def get_gsc_pages_all_periods(site_name: str = "ほんべ"):
+    """全期間のGSCページデータを返す（前月比計算用）"""
+    import pandas as pd
+    sh = get_data_spreadsheet()
+    prefix = f"_GSC_{site_name}_ページ"
+    all_dfs = []
+    for ws in sh.worksheets():
+        if ws.title.startswith(prefix):
+            try:
+                records = ws.get_all_records()
+                if records:
+                    df = pd.DataFrame(records)
+                    p = ws.title.replace(prefix, "").lstrip("_")
+                    df["_period"] = p if p else "latest"
+                    all_dfs.append(df)
+            except Exception:
+                pass
+    if all_dfs:
+        return pd.concat(all_dfs, ignore_index=True)
     return None
 
 

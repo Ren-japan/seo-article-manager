@@ -59,6 +59,13 @@ with st.sidebar:
                 return m.group(1)
             return None
 
+        def extract_period_from_filename(filename):
+            """zipファイル名から年月を抽出（例: ...2026-03-31.zip → 202603）"""
+            m = re.search(r'(\d{4})-(\d{2})-\d{2}', filename)
+            if m:
+                return m.group(1) + m.group(2)
+            return ""
+
         def domain_to_site_name(domain):
             """ドメインからサイト名を逆引き（記事管理スプシのURL列を見る）"""
             try:
@@ -71,27 +78,26 @@ with st.sidebar:
                 pass
             return None
 
-        def process_gsc_csv(csv_df, site_name="ほんべ"):
-            """CSVをページ別/クエリ別に振り分け → スプシに保存"""
+        def process_gsc_csv(csv_df, site_name="ほんべ", period=""):
+            """CSVをページ別/クエリ別に振り分け → スプシに月別保存"""
             first_col = csv_df.columns[0]
-            # ヘッダー名で厳密に判定
             if first_col in ["上位のページ"] or csv_df.iloc[:, 0].astype(str).str.startswith("http").any():
                 is_pages = True
             elif first_col in ["上位のクエリ"]:
                 is_pages = False
             else:
-                # ページ別でもクエリ別でもない（フィルタ、デバイス、国等）→ スキップ
                 return
+            period_label = f"（{period[:4]}/{period[4:]}）" if period else ""
             if is_pages:
                 try:
-                    save_gsc_pages(csv_df, site_name=site_name)
-                    st.success(f"✅ {site_name} ページ別 {len(csv_df)}行 保存済み")
+                    save_gsc_pages(csv_df, site_name=site_name, period=period)
+                    st.success(f"✅ {site_name} ページ別{period_label} {len(csv_df)}行 保存済み")
                 except Exception as e:
                     st.warning(f"⚠️ {site_name} ページ別 スプシ保存失敗: {e}")
             else:
                 try:
-                    save_gsc_queries(csv_df, site_name=site_name)
-                    st.success(f"✅ {site_name} クエリ別 {len(csv_df)}行 保存済み")
+                    save_gsc_queries(csv_df, site_name=site_name, period=period)
+                    st.success(f"✅ {site_name} クエリ別{period_label} {len(csv_df)}行 保存済み")
                 except Exception as e:
                     st.warning(f"⚠️ {site_name} クエリ別 スプシ保存失敗: {e}")
 
@@ -99,6 +105,7 @@ with st.sidebar:
             if gsc_file.name.endswith(".zip"):
                 # ファイル名からドメイン→サイト名を判別
                 domain = extract_domain_from_filename(gsc_file.name)
+                period = extract_period_from_filename(gsc_file.name)
                 site_name = domain_to_site_name(domain) if domain else None
                 if not site_name:
                     site_name = st.text_input(f"サイト名を入力（{gsc_file.name}）", key=f"site_{gsc_file.name}")
@@ -116,7 +123,7 @@ with st.sidebar:
                         csv_df = pd.read_csv(io.BytesIO(csv_data))
                         if len(csv_df) == 0 or len(csv_df.columns) < 5:
                             continue
-                        process_gsc_csv(csv_df, site_name=site_name)
+                        process_gsc_csv(csv_df, site_name=site_name, period=period)
                         csv_count += 1
                     except Exception:
                         pass
