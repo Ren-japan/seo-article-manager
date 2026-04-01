@@ -689,21 +689,24 @@ def load_from_spreadsheet():
             pub_date = None
 
         pub_display = pub_date.strftime("%Y/%m/%d") if pub_date else "-"
-        deadline_str = (pub_date + timedelta(days=14)).strftime("%Y/%m/%d") if pub_date else "-"
 
-        # 更新日
+        # 更新日（L列）
         update_str = str(art.get("更新日", art.get("modified", "")))
+        update_date = None
         try:
             if "T" in update_str:
-                update_display = datetime.strptime(update_str[:10], "%Y-%m-%d").strftime("%Y/%m/%d")
+                update_date = datetime.strptime(update_str[:10], "%Y-%m-%d")
             elif " " in update_str and "-" in update_str:
-                update_display = datetime.strptime(update_str.split(" ")[0], "%Y-%m-%d").strftime("%Y/%m/%d")
-            elif "/" in update_str:
-                update_display = update_str
-            else:
-                update_display = "-"
+                update_date = datetime.strptime(update_str.split(" ")[0], "%Y-%m-%d")
+            elif "/" in update_str and len(update_str) >= 8:
+                update_date = datetime.strptime(update_str.split(" ")[0], "%Y/%m/%d")
         except:
-            update_display = "-"
+            pass
+        update_display = update_date.strftime("%Y/%m/%d") if update_date else "-"
+
+        # 更新期限 = 更新日+14日（更新日がなければ公開日+14日）
+        base_date = update_date or pub_date
+        deadline_str = (base_date + timedelta(days=14)).strftime("%Y/%m/%d") if base_date else "-"
 
         # ステータス自動判定
         if position >= 100:
