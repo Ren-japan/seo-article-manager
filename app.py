@@ -74,21 +74,23 @@ with st.sidebar:
                     st.warning(f"⚠️ スプシ同期失敗: {e}")
 
         if gsc_file.name.endswith(".zip"):
-            # zip展開して中のCSVを全部処理
+            # zip展開してページ別・クエリ別CSVだけ処理（フィルタ・デバイス等はスキップ）
             zf = zipfile.ZipFile(io.BytesIO(gsc_file.read()))
             csv_count = 0
             for name in zf.namelist():
-                if name.endswith(".csv"):
-                    csv_data = zf.read(name)
-                    try:
-                        csv_df = pd.read_csv(io.BytesIO(csv_data))
-                        if len(csv_df) > 0:
-                            process_gsc_csv(csv_df, name)
-                            csv_count += 1
-                    except Exception:
-                        pass
+                if not name.endswith(".csv"):
+                    continue
+                csv_data = zf.read(name)
+                try:
+                    csv_df = pd.read_csv(io.BytesIO(csv_data))
+                    if len(csv_df) == 0 or len(csv_df.columns) < 5:
+                        continue  # 5カラム未満はGSCのページ別/クエリ別ではない
+                    process_gsc_csv(csv_df, name)
+                    csv_count += 1
+                except Exception:
+                    pass
             if csv_count == 0:
-                st.warning("zipの中にCSVが見つかりませんでした")
+                st.warning("zipの中にGSCデータ（ページ別/クエリ別）が見つかりませんでした")
         else:
             gsc_df = pd.read_csv(gsc_file)
             process_gsc_csv(gsc_df)
