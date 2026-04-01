@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 import random
 import os
 import json
-from lib.spreadsheet import get_all_articles, get_all_tasks, save_gsc_pages, save_gsc_queries, get_gsc_pages, get_gsc_queries, get_site_configs, save_site_config, get_site_names
+from lib.spreadsheet import get_all_articles, get_all_tasks, save_gsc_pages, save_gsc_queries, get_gsc_pages, get_gsc_queries, get_site_configs, save_site_config, get_site_names, get_gsc_pages_all_periods
 
 # スプシアクセスのキャッシュ（5分）
 @st.cache_data(ttl=300)
@@ -602,10 +602,32 @@ def load_from_spreadsheet():
     # GSCデータ読み込み（全サイト分をマージ。APIエラー時はスキップ）
     gsc_pages = None
     gsc_queries = None
+    prev_month_pv = {}  # URL → 前月PV のルックアップ
     try:
         site_names = get_site_names()
         all_pages = []
         all_queries = []
+
+        # 月別データから前月PVを計算
+        for sn in site_names:
+            try:
+                all_period_data = get_gsc_pages_all_periods(site_name=sn)
+                if all_period_data is not None and not all_period_data.empty:
+                    periods = sorted(all_period_data["_period"].unique())
+                    if len(periods) >= 2:
+                        # 前月 = 最新から2番目の期間
+                        prev_period = periods[-2]
+                        prev_df = all_period_data[all_period_data["_period"] == prev_period]
+                        url_col = prev_df.columns[0]
+                        click_col = prev_df.columns[1]
+                        for _, row in prev_df.iterrows():
+                            try:
+                                prev_month_pv[str(row[url_col]).rstrip("/")] = int(row[click_col])
+                            except (ValueError, TypeError):
+                                pass
+            except Exception:
+                pass
+
         for sn in site_names:
             try:
                 p = get_gsc_pages(site_name=sn)
@@ -681,9 +703,9 @@ def load_from_spreadsheet():
                 position = round((match["順位"] * match["表示回数"]).sum() / match["表示回数"].sum(), 1) if impressions > 0 else 999
 
         current_pv = clicks
-        # 先月PV（前月のGSCデータがあれば計算。なければ現PVと同じ=変化なし扱い）
-        # TODO: get_gsc_pages_all_periodsから前月データを取得して計算
-        last_month_pv = current_pv if current_pv > 0 else 0
+        # 先月PV（月別GSCデータから取得。なければ現PVと同じ=変化なし扱い）
+        base_url = url.rstrip("/") if url != "（未公開）" else ""
+        last_month_pv = prev_month_pv.get(base_url, current_pv if current_pv > 0 else 0)
         pv_ratio = round(current_pv / last_month_pv * 100) if last_month_pv > 0 else 0
 
         # 順位変動（仮）
