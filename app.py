@@ -1366,6 +1366,41 @@ with tab5:
     else:
         # === 個別メンバー画面（GOALベース） ===
         mdf = filtered[filtered["担当"] == selected_member]
+        m_total = len(mdf)
+        m_alert = len(mdf[mdf["PV比"] < 80])
+        m_overdue = len(mdf[(mdf["更新期限"] < datetime.now().strftime("%Y/%m/%d")) & (mdf["ステータス"] != "完了")])
+        m_pv_type = len(mdf[mdf["記事タイプ"] == "PV型"]) if "記事タイプ" in mdf.columns else 0
+        m_cv_type = len(mdf[mdf["記事タイプ"] == "CV型"]) if "記事タイプ" in mdf.columns else 0
+
+        # KPIカード
+        kc1, kc2, kc3, kc4 = st.columns(4)
+        with kc1:
+            st.markdown(f"""<div class="kpi-card">
+                <div class="label">担当記事</div>
+                <div class="value">{m_total}</div>
+                <div class="sub">{m_pv_type} ノウハウ / {m_cv_type} CV</div>
+            </div>""", unsafe_allow_html=True)
+        with kc2:
+            st.markdown(f"""<div class="kpi-card">
+                <div class="label">PVアラート</div>
+                <div class="value" style="color: {'#c62828' if m_alert > 0 else '#2e7d32'}">{m_alert}件</div>
+            </div>""", unsafe_allow_html=True)
+        with kc3:
+            st.markdown(f"""<div class="kpi-card">
+                <div class="label">期限切れ</div>
+                <div class="value" style="color: {'#c62828' if m_overdue > 0 else '#2e7d32'}">{m_overdue}件</div>
+            </div>""", unsafe_allow_html=True)
+        with kc4:
+            # サイト別内訳
+            site_counts = mdf["サイト"].value_counts()
+            site_str = " / ".join([f"{site} {cnt}" for site, cnt in site_counts.items()])
+            st.markdown(f"""<div class="kpi-card">
+                <div class="label">サイト別</div>
+                <div class="value" style="font-size:16px;">{site_str}</div>
+            </div>""", unsafe_allow_html=True)
+
+        st.markdown("")
+
         m_knowhow = mdf[mdf["分類"] == "ノウハウ"]
         m_cv = mdf[mdf["分類"] == "CV"]
         m_other = mdf[~mdf["分類"].isin(["ノウハウ", "CV"])]
