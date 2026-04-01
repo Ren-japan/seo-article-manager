@@ -47,53 +47,78 @@ with st.sidebar:
     st.markdown("### 📂 データ管理")
 
     st.markdown("**GSCデータ**")
-    st.caption("GSC → 検索パフォーマンス → エクスポート（zipでもCSVでもOK）")
-    gsc_file = st.file_uploader("GSCデータ", type=["csv", "zip"], key="gsc_csv")
-    if gsc_file:
-        import zipfile, io
+    st.caption("GSC → 検索パフォーマンス → エクスポート（複数zipまとめてOK）")
+    gsc_files = st.file_uploader("GSCデータ", type=["csv", "zip"], key="gsc_csv", accept_multiple_files=True)
+    if gsc_files:
+        import zipfile, io, re
 
-        def process_gsc_csv(csv_df, filename=""):
-            """CSVを自動判定してページ別/クエリ別に振り分け → スプシにも保存"""
+        def extract_domain_from_filename(filename):
+            """zipファイル名からドメインを抽出（例: https___honbe-clinic.jp_-... → honbe-clinic.jp）"""
+            m = re.search(r'https?___([^_]+\.[^_]+)_', filename)
+            if m:
+                return m.group(1)
+            return None
+
+        def domain_to_site_name(domain):
+            """ドメインからサイト名を逆引き（記事管理スプシのURL列を見る）"""
+            try:
+                articles = get_all_articles()
+                for art in articles:
+                    url = art.get("URL", "")
+                    if domain in url:
+                        return art.get("サイト", "")
+            except Exception:
+                pass
+            return None
+
+        def process_gsc_csv(csv_df, site_name="ほんべ"):
+            """CSVをページ別/クエリ別に振り分け → スプシに保存"""
             first_col_vals = csv_df.iloc[:, 0].astype(str)
             is_pages = first_col_vals.str.startswith("http").any()
             if is_pages:
-                csv_df.to_csv(GSC_PAGES_PATH, index=False)
                 try:
-                    save_gsc_pages(csv_df)
-                    st.success(f"✅ ページ別 {len(csv_df)}行 保存済み（スプシ同期OK）")
+                    save_gsc_pages(csv_df, site_name=site_name)
+                    st.success(f"✅ {site_name} ページ別 {len(csv_df)}行 保存済み")
                 except Exception as e:
-                    st.success(f"✅ ページ別 {len(csv_df)}行 ローカル保存済み")
-                    st.warning(f"⚠️ スプシ同期失敗: {e}")
+                    st.warning(f"⚠️ {site_name} ページ別 スプシ保存失敗: {e}")
             else:
-                csv_df.to_csv(GSC_QUERIES_PATH, index=False)
                 try:
-                    save_gsc_queries(csv_df)
-                    st.success(f"✅ クエリ別 {len(csv_df)}行 保存済み（スプシ同期OK）")
+                    save_gsc_queries(csv_df, site_name=site_name)
+                    st.success(f"✅ {site_name} クエリ別 {len(csv_df)}行 保存済み")
                 except Exception as e:
-                    st.success(f"✅ クエリ別 {len(csv_df)}行 ローカル保存済み")
-                    st.warning(f"⚠️ スプシ同期失敗: {e}")
+                    st.warning(f"⚠️ {site_name} クエリ別 スプシ保存失敗: {e}")
 
-        if gsc_file.name.endswith(".zip"):
-            # zip展開してページ別・クエリ別CSVだけ処理（フィルタ・デバイス等はスキップ）
-            zf = zipfile.ZipFile(io.BytesIO(gsc_file.read()))
-            csv_count = 0
-            for name in zf.namelist():
-                if not name.endswith(".csv"):
-                    continue
-                csv_data = zf.read(name)
-                try:
-                    csv_df = pd.read_csv(io.BytesIO(csv_data))
-                    if len(csv_df) == 0 or len(csv_df.columns) < 5:
-                        continue  # 5カラム未満はGSCのページ別/クエリ別ではない
-                    process_gsc_csv(csv_df, name)
-                    csv_count += 1
-                except Exception:
-                    pass
-            if csv_count == 0:
-                st.warning("zipの中にGSCデータ（ページ別/クエリ別）が見つかりませんでした")
-        else:
-            gsc_df = pd.read_csv(gsc_file)
-            process_gsc_csv(gsc_df)
+        for gsc_file in gsc_files:
+            if gsc_file.name.endswith(".zip"):
+                # ファイル名からドメイン→サイト名を判別
+                domain = extract_domain_from_filename(gsc_file.name)
+                site_name = domain_to_site_name(domain) if domain else None
+                if not site_name:
+                    site_name = st.text_input(f"サイト名を入力（{gsc_file.name}）", key=f"site_{gsc_file.name}")
+                    if not site_name:
+                        st.warning(f"⚠️ {gsc_file.name} のサイト名が判別できません")
+                        continue
+
+                zf = zipfile.ZipFile(io.BytesIO(gsc_file.read()))
+                csv_count = 0
+                for name in zf.namelist():
+                    if not name.endswith(".csv"):
+                        continue
+                    csv_data = zf.read(name)
+                    try:
+                        csv_df = pd.read_csv(io.BytesIO(csv_data))
+                        if len(csv_df) == 0 or len(csv_df.columns) < 5:
+                            continue
+                        process_gsc_csv(csv_df, site_name=site_name)
+                        csv_count += 1
+                    except Exception:
+                        pass
+                if csv_count == 0:
+                    st.warning(f"⚠️ {gsc_file.name} にGSCデータが見つかりませんでした")
+            else:
+                gsc_df = pd.read_csv(gsc_file)
+                if len(gsc_df.columns) >= 5:
+                    process_gsc_csv(gsc_df)
 
     st.markdown("---")
 
