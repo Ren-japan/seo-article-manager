@@ -582,27 +582,32 @@ def load_from_spreadsheet():
     articles = []
     assignees = ["札幌A", "札幌B", "東京C", "東京D", "インターンE", "インターンF"]
 
-    # GSCデータ読み込み（ローカル → スプシの順で探す）
-    gsc_pages = None
-    if os.path.exists(GSC_PAGES_PATH):
-        gsc_pages = pd.read_csv(GSC_PAGES_PATH)
-    else:
-        gsc_pages = get_gsc_pages()
+    # GSCデータ読み込み（全サイト分をマージ）
+    try:
+        site_names = get_site_names()
+    except Exception:
+        site_names = ["ほんべ"]
 
-    if gsc_pages is not None and not gsc_pages.empty and len(gsc_pages.columns) >= 5:
+    all_pages = []
+    all_queries = []
+    for sn in site_names:
+        p = get_gsc_pages(site_name=sn)
+        if p is not None and not p.empty and len(p.columns) >= 5:
+            all_pages.append(p)
+        q = get_gsc_queries(site_name=sn)
+        if q is not None and not q.empty and len(q.columns) >= 5:
+            all_queries.append(q)
+
+    gsc_pages = pd.concat(all_pages, ignore_index=True) if all_pages else None
+    gsc_queries = pd.concat(all_queries, ignore_index=True) if all_queries else None
+
+    if gsc_pages is not None and not gsc_pages.empty:
         col_map = {gsc_pages.columns[0]: "URL", gsc_pages.columns[1]: "クリック数",
                    gsc_pages.columns[2]: "表示回数", gsc_pages.columns[3]: "CTR", gsc_pages.columns[4]: "順位"}
         gsc_pages = gsc_pages.rename(columns=col_map)
         gsc_pages["CTR"] = gsc_pages["CTR"].astype(str).str.replace("%", "").astype(float)
 
-    # GSCクエリデータ読み込み（KW別順位用）
-    gsc_queries = None
-    if os.path.exists(GSC_QUERIES_PATH):
-        gsc_queries = pd.read_csv(GSC_QUERIES_PATH)
-    else:
-        gsc_queries = get_gsc_queries()
-
-    if gsc_queries is not None and not gsc_queries.empty and len(gsc_queries.columns) >= 5:
+    if gsc_queries is not None and not gsc_queries.empty:
         q_col_map = {gsc_queries.columns[0]: "クエリ", gsc_queries.columns[1]: "クリック数",
                      gsc_queries.columns[2]: "表示回数", gsc_queries.columns[3]: "CTR", gsc_queries.columns[4]: "順位"}
         gsc_queries = gsc_queries.rename(columns=q_col_map)
