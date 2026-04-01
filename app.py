@@ -1162,9 +1162,9 @@ with tab2:
     kw_styled = kw_df.style
     for col in ["メインKW順位", "サブKW順位"]:
         if col in kw_df.columns:
-            kw_styled = kw_styled.applymap(kw_pos_color, subset=[col])
+            kw_styled = kw_styled.map(kw_pos_color, subset=[col])
     if "ステータス" in kw_df.columns:
-        kw_styled = kw_styled.applymap(
+        kw_styled = kw_styled.map(
             lambda v: "color: #c62828; font-weight:600" if v in ["要改善", "圏外"] else ("color: #2e7d32" if v == "正常" else ""),
             subset=["ステータス"]
         )
@@ -1190,7 +1190,7 @@ with tab2:
 
     perf_styled = perf_df.style
     for col, func in perf_style_maps:
-        perf_styled = perf_styled.applymap(func, subset=[col])
+        perf_styled = perf_styled.map(func, subset=[col])
 
     fmt = {}
     if "順位変動" in perf_df.columns:
