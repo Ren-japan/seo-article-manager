@@ -681,10 +681,10 @@ def load_from_spreadsheet():
                 position = round((match["順位"] * match["表示回数"]).sum() / match["表示回数"].sum(), 1) if impressions > 0 else 999
 
         current_pv = clicks
-        # 先月PV（前月のGSCデータがあれば計算、なければ「-」）
-        last_month_pv = 0
-        pv_ratio = -1  # -1 = 前月データなし
+        # 先月PV（前月のGSCデータがあれば計算。なければ現PVと同じ=変化なし扱い）
         # TODO: get_gsc_pages_all_periodsから前月データを取得して計算
+        last_month_pv = current_pv if current_pv > 0 else 0
+        pv_ratio = round(current_pv / last_month_pv * 100) if last_month_pv > 0 else 0
 
         # 順位変動（仮）
         prev_position = round(position + random.uniform(-3, 3), 1)
@@ -922,7 +922,7 @@ with tab1:
     pv_type_count = len(filtered[filtered[type_col] == "PV型"]) if type_col == "記事タイプ" else len(filtered[filtered["分類"] == "ノウハウ"])
     cv_type_count = len(filtered[filtered[type_col] == "CV型"]) if type_col == "記事タイプ" else len(filtered[filtered["分類"] == "CV"])
 
-    alert_df = filtered[filtered["PV比"].between(0, 79)]
+    alert_df = filtered[filtered["PV比"] < 80]
     alert_count = len(alert_df)
     alert_pv = len(alert_df[alert_df[type_col] == "PV型"]) if type_col == "記事タイプ" else 0
     alert_cv = len(alert_df[alert_df[type_col] == "CV型"]) if type_col == "記事タイプ" else 0
@@ -987,7 +987,7 @@ with tab1:
         g_pv_rate = round(g_pv_ok / g_total * 100) if g_total > 0 else 0
         g_updated = len(gdf[gdf["前回更新"] != "-"])
         g_update_rate = round(g_updated / g_total * 100) if g_total > 0 else 0
-        g_alert = len(gdf[gdf["PV比"].between(0, 79)])
+        g_alert = len(gdf[gdf["PV比"] < 80])
         g_pos_drop = len(gdf[gdf["順位変動"] >= 5])
         pv_cls = rate_class(g_pv_rate)
 
@@ -1047,7 +1047,7 @@ with tab1:
         st.markdown('<div class="sec-title">🩺 記事の健康状態</div>', unsafe_allow_html=True)
         health_good = len(filtered[filtered["PV比"] >= 100])
         health_ok = len(filtered[(filtered["PV比"] >= 80) & (filtered["PV比"] < 100)])
-        health_warn = len(filtered[(filtered["PV比"] >= 60) & (filtered["PV比"].between(0, 79))])
+        health_warn = len(filtered[(filtered["PV比"] >= 60) & (filtered["PV比"] < 80)])
         health_bad = len(filtered[filtered["PV比"] < 60])
 
         health_data = pd.DataFrame([
@@ -1119,7 +1119,7 @@ with tab1:
     st.markdown('<div class="sec-title">⚡ 直近アラート</div>', unsafe_allow_html=True)
 
     # PVアラート
-    pv_alerts = filtered[filtered["PV比"].between(0, 79)].sort_values("PV比").head(3)
+    pv_alerts = filtered[filtered["PV比"] < 80].sort_values("PV比").head(3)
     # 順位急落
     pos_alerts = filtered[filtered["順位変動"] >= 5].sort_values("順位変動", ascending=False).head(3)
 
@@ -1170,7 +1170,7 @@ with tab2:
     if status_filter != "すべて":
         tdf = tdf[tdf["ステータス"] == status_filter]
     if pv_alert_only:
-        tdf = tdf[tdf["PV比"].between(0, 79)]
+        tdf = tdf[tdf["PV比"] < 80]
 
     sort_map = {
         "PV比（低い順）": ("PV比", True),
@@ -1299,7 +1299,7 @@ with tab3:
 
     # アラート対象記事を統合（PV低下 or 順位急落 or 期限切れ、いずれか該当）
     alert_all = filtered.copy()
-    alert_all["_pv_alert"] = alert_all["PV比"].between(0, 79)
+    alert_all["_pv_alert"] = alert_all["PV比"] < 80
     alert_all["_pos_alert"] = alert_all["順位変動"] >= 5
     alert_all["_overdue"] = (alert_all["更新期限"] < today_str) & (alert_all["ステータス"] != "完了")
     alert_all = alert_all[alert_all["_pv_alert"] | alert_all["_pos_alert"] | alert_all["_overdue"]]
@@ -1386,7 +1386,7 @@ with tab5:
             mdf = assigned[assigned["担当"] == member]
             m_total = len(mdf)
             m_done = len(mdf[mdf["ステータス"] == "完了"])
-            m_alert = len(mdf[mdf["PV比"].between(0, 79)])
+            m_alert = len(mdf[mdf["PV比"] < 80])
             m_rate = round(m_done / m_total * 100) if m_total > 0 else 0
             cls = rate_class(m_rate)
 
@@ -1410,7 +1410,7 @@ with tab5:
         # === 個別メンバー画面（GOALベース） ===
         mdf = filtered[filtered["担当"] == selected_member]
         m_total = len(mdf)
-        m_alert = len(mdf[mdf["PV比"].between(0, 79)])
+        m_alert = len(mdf[mdf["PV比"] < 80])
         m_overdue = len(mdf[(mdf["更新期限"] < datetime.now().strftime("%Y/%m/%d")) & (mdf["ステータス"] != "完了")])
         m_pv_type = len(mdf[mdf["記事タイプ"] == "PV型"]) if "記事タイプ" in mdf.columns else 0
         m_cv_type = len(mdf[mdf["記事タイプ"] == "CV型"]) if "記事タイプ" in mdf.columns else 0
@@ -1454,7 +1454,7 @@ with tab5:
         if not m_knowhow.empty:
             kh_total = len(m_knowhow)
             kh_overdue = len(m_knowhow[(m_knowhow["更新期限"] < datetime.now().strftime("%Y/%m/%d")) & (m_knowhow["ステータス"] != "完了")])
-            kh_alert = len(m_knowhow[m_knowhow["PV比"].between(0, 79)])
+            kh_alert = len(m_knowhow[m_knowhow["PV比"] < 80])
             kh_ok = max(0, kh_total - kh_overdue - kh_alert)
             kh_clear_rate = max(0, round(kh_ok / kh_total * 100) if kh_total > 0 else 0)
 
@@ -1477,13 +1477,13 @@ with tab5:
             </div>
             """, unsafe_allow_html=True)
 
-            kh_action = m_knowhow[(m_knowhow["更新期限"] < datetime.now().strftime("%Y/%m/%d")) | (m_knowhow["PV比"].between(0, 79))]
+            kh_action = m_knowhow[(m_knowhow["更新期限"] < datetime.now().strftime("%Y/%m/%d")) | (m_knowhow["PV比"] < 80)]
             kh_action = kh_action[kh_action["ステータス"] != "完了"].sort_values("PV比")
 
             if not kh_action.empty:
                 for _, row in kh_action.iterrows():
                     reasons = []
-                    if 0 <= row["PV比"] < 80:
+                    if row["PV比"] < 80:
                         reasons.append(f"📉 PV {row['PV比']}%")
                     try:
                         if row["更新期限"] < datetime.now().strftime("%Y/%m/%d"):
@@ -1539,7 +1539,7 @@ with tab5:
             cv_todo = m_cv[m_cv["前回更新"] < week_start].sort_values("PV比")
             if not cv_todo.empty:
                 for _, row in cv_todo.iterrows():
-                    cls = "danger" if 0 <= row["PV比"] < 80 else "warning"
+                    cls = "danger" if row["PV比"] < 80 else "warning"
                     st.markdown(f"""<div class="alert-card {cls}">
                         <div class="a-title">{'🔴' if row['PV比'] < 80 else '🟡'} {row['メインKW']}（{row['ジャンル']}）</div>
                         <div class="a-sub">今週未更新 | PV {row['PV比']}% | 順位 {'圏外' if row['順位'] >= 100 else row['順位']} | 前回: {row['前回更新']}</div>
@@ -1555,7 +1555,7 @@ with tab5:
         if not m_other.empty:
             st.markdown(f'<div class="sec-title">📋 その他の担当記事（{len(m_other)}本）</div>', unsafe_allow_html=True)
             for _, row in m_other[m_other["ステータス"] != "完了"].sort_values("PV比").iterrows():
-                cls = "danger" if 0 <= row["PV比"] < 80 else ""
+                cls = "danger" if row["PV比"] < 80 else ""
                 st.markdown(f"""<div class="alert-card {cls if cls else ''}">
                     <div class="a-title">{row['メインKW']}（{row['ジャンル']}・{row['分類']}）</div>
                     <div class="a-sub">PV {row['PV比']}% | 順位 {'圏外' if row['順位'] >= 100 else row['順位']} | ステータス: {row['ステータス']}</div>
