@@ -562,7 +562,7 @@ def load_from_spreadsheet():
     else:
         gsc_pages = get_gsc_pages()
 
-    if gsc_pages is not None and not gsc_pages.empty:
+    if gsc_pages is not None and not gsc_pages.empty and len(gsc_pages.columns) >= 5:
         col_map = {gsc_pages.columns[0]: "URL", gsc_pages.columns[1]: "クリック数",
                    gsc_pages.columns[2]: "表示回数", gsc_pages.columns[3]: "CTR", gsc_pages.columns[4]: "順位"}
         gsc_pages = gsc_pages.rename(columns=col_map)
@@ -575,11 +575,13 @@ def load_from_spreadsheet():
     else:
         gsc_queries = get_gsc_queries()
 
-    if gsc_queries is not None and not gsc_queries.empty:
+    if gsc_queries is not None and not gsc_queries.empty and len(gsc_queries.columns) >= 5:
         q_col_map = {gsc_queries.columns[0]: "クエリ", gsc_queries.columns[1]: "クリック数",
                      gsc_queries.columns[2]: "表示回数", gsc_queries.columns[3]: "CTR", gsc_queries.columns[4]: "順位"}
         gsc_queries = gsc_queries.rename(columns=q_col_map)
         gsc_queries["クエリ_lower"] = gsc_queries["クエリ"].str.lower()
+    else:
+        gsc_queries = None
 
     # デフォルト除外パターン
     DEFAULT_EXCLUDES = ["contactform", "contact", "privacy-policy", "thanks",
