@@ -73,8 +73,15 @@ with st.sidebar:
 
         def process_gsc_csv(csv_df, site_name="ほんべ"):
             """CSVをページ別/クエリ別に振り分け → スプシに保存"""
-            first_col_vals = csv_df.iloc[:, 0].astype(str)
-            is_pages = first_col_vals.str.startswith("http").any()
+            first_col = csv_df.columns[0]
+            # ヘッダー名で厳密に判定
+            if first_col in ["上位のページ"] or csv_df.iloc[:, 0].astype(str).str.startswith("http").any():
+                is_pages = True
+            elif first_col in ["上位のクエリ"]:
+                is_pages = False
+            else:
+                # ページ別でもクエリ別でもない（フィルタ、デバイス、国等）→ スキップ
+                return
             if is_pages:
                 try:
                     save_gsc_pages(csv_df, site_name=site_name)
